@@ -193,6 +193,8 @@ def create_server(
             _state["intentgraph_capture"] = CaptureService(
                 journal, config.intentgraph.db_path, actor="mcp"
             )
+            _state["intentgraph_journal"] = journal
+            _state["intentgraph_db"] = config.intentgraph.db_path
             _state["intentgraph_available"] = True
         except Exception:
             _state["intentgraph_available"] = False
@@ -589,6 +591,46 @@ def create_server(
                     },
                 },
             ),
+            Tool(
+                name="bootstrap",
+                description=(
+                    "Start a session from the intent graph instead of reading files. "
+                    "Returns system orientation (top-level whys) plus the whys relevant "
+                    "to your task, packed into a token budget. Call this FIRST in a new "
+                    "session; only fall back to file reads for what it cannot answer."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "task": {
+                            "type": "string",
+                            "description": "What you're about to work on",
+                        },
+                        "budget_tokens": {
+                            "type": "integer",
+                            "default": 4000,
+                            "description": "Token budget for the returned context",
+                        },
+                    },
+                    "required": ["task"],
+                },
+            ),
+            Tool(
+                name="get_intent",
+                description=(
+                    "Traverse the intent graph: a node in full with parents/children "
+                    "(node_id), every why anchoring a file (file), or all whys at an "
+                    "abstraction level (level 0-3). Omit all args for coverage stats."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "node_id": {"type": "string"},
+                        "file": {"type": "string"},
+                        "level": {"type": "integer", "minimum": 0, "maximum": 3},
+                    },
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -641,6 +683,10 @@ def create_server(
                 result = await _handle_record_why(state, arguments)
             elif name == "check_precedent":
                 result = await _handle_check_precedent(state, arguments)
+            elif name == "bootstrap":
+                result = await _handle_bootstrap(state, arguments)
+            elif name == "get_intent":
+                result = await _handle_get_intent(state, arguments)
             else:
                 result = {"error": f"Unknown tool: {name}"}
         except Exception as exc:
@@ -1347,6 +1393,90 @@ def create_server(
                 "No matches means no precedent: record your decision with record_why."
             ),
         }
+
+    async def _handle_bootstrap(
+        state: dict[str, Any], args: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Session bootstrap over the intent graph, with the degradation ladder."""
+        if not state.get("intentgraph_available"):
+            # Rung 1 missing entirely — hand the session to rung 2 (code graph)
+            fallback: dict[str, Any] = {
+                "intent": None,
+                "ladder": ["intent graph unavailable → falling through to code graph"],
+            }
+            try:
+                fallback["code_context"] = await _handle_get_context(state, args)
+            except Exception as exc:
+                fallback["ladder"].append(f"code graph failed ({exc}) → use raw file reads")
+            return fallback
+
+        from codebase_intel.intentgraph.bootstrap import IntentBootstrapper
+
+        bootstrapper = IntentBootstrapper(
+            state["intentgraph_journal"], state["intentgraph_db"]
+        )
+        budget = int(args.get("budget_tokens", 4000))
+        result = await bootstrapper.bootstrap(args["task"], budget_tokens=budget)
+
+        response: dict[str, Any] = {
+            "intent": result.model_dump(mode="json"),
+            "ladder": [f"intent coverage: {result.coverage}"],
+        }
+        if result.coverage != "good":
+            remaining = max(500, budget - result.total_tokens)
+            try:
+                response["code_context"] = await _handle_get_context(
+                    state, {"task": args["task"], "budget_tokens": remaining}
+                )
+                response["ladder"].append(
+                    f"fell through to code graph with {remaining} remaining tokens"
+                )
+            except Exception as exc:
+                response["ladder"].append(
+                    f"code graph unavailable ({exc}) → use raw file reads for gaps"
+                )
+        return response
+
+    async def _handle_get_intent(
+        state: dict[str, Any], args: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Traverse the intent graph by node, file, or level."""
+        if not state.get("intentgraph_available"):
+            return {
+                "error": "Intent graph not available",
+                "suggestion": "Run `codebase-intel init` in the project root",
+            }
+
+        from codebase_intel.intentgraph import IntentLevel
+        from codebase_intel.intentgraph.traversal import TraversalService
+
+        traversal = TraversalService(state["intentgraph_journal"], state["intentgraph_db"])
+
+        if args.get("node_id"):
+            return await traversal.node_view(args["node_id"])
+        if args.get("file"):
+            from codebase_intel.intentgraph.capture import _resolve_posix
+
+            nodes = await traversal.why_for_file(_resolve_posix(args["file"]))
+            return {
+                "total": len(nodes),
+                "whys": [n.to_context_string(verbose=True) for n in nodes],
+            }
+        if args.get("level") is not None:
+            nodes = await traversal.overview(IntentLevel(int(args["level"])))
+            return {
+                "total": len(nodes),
+                "nodes": [
+                    {
+                        "node_id": n.node_id,
+                        "title": n.title,
+                        "status": n.status.value,
+                        "trust": n.trust.value,
+                    }
+                    for n in nodes
+                ],
+            }
+        return {"coverage": await traversal.coverage()}
 
     return server
 

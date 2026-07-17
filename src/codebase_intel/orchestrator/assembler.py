@@ -35,13 +35,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import tiktoken
-
-from codebase_intel.core.exceptions import (
-    BudgetExceededError,
-    ErrorContext,
-    PartialInitializationError,
-)
+# Re-exported name — token estimation moved to core.tokens so intentgraph can share it
+from codebase_intel.core.tokens import estimate_tokens
 from codebase_intel.core.types import (
     AssembledContext,
     ContextItem,
@@ -57,33 +52,6 @@ if TYPE_CHECKING:
     from codebase_intel.graph.query import GraphQueryEngine
 
 logger = logging.getLogger(__name__)
-
-# tiktoken encoder for token estimation
-# cl100k_base is used by GPT-4 and is a reasonable baseline for Claude too
-_encoder: tiktoken.Encoding | None = None
-
-
-def _get_encoder() -> tiktoken.Encoding:
-    global _encoder
-    if _encoder is None:
-        _encoder = tiktoken.get_encoding("cl100k_base")
-    return _encoder
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate token count for a text string.
-
-    Edge case: different models tokenize differently. cl100k_base is
-    a reasonable approximation. The TokenBudget.safety_margin_pct
-    accounts for variance (typically 10%).
-
-    Edge case: empty string → 0 tokens (valid).
-    Edge case: non-ASCII text → may tokenize differently, but the
-    safety margin covers this.
-    """
-    if not text:
-        return 0
-    return len(_get_encoder().encode(text))
 
 
 class ContextAssembler:
@@ -634,12 +602,11 @@ class ContextAssembler:
 
         return f"# File: {file_path.name}\n{content}"
 
-    def _summarize_node(self, node: "GraphNode") -> str:
+    def _summarize_node(self, node: GraphNode) -> str:
         """Create a compact summary of a graph node.
 
         Used for MEDIUM/LOW priority items to save budget.
         """
-        from codebase_intel.core.types import GraphNode  # avoid circular
 
         parts = [f"{node.kind.value}: {node.qualified_name}"]
         if node.docstring:

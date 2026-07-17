@@ -7,28 +7,13 @@
 | T-001 | v2 requirements analysis & robust plan | done | 2026-07-17 |
 | T-002 | Phase 0 — intent graph foundation (models, journal-first store, v1 migration) | done | 2026-07-17 |
 | T-003 | Phase 1 — capture loop (record_why, check_precedent, git-hook gate, classifier) | done | 2026-07-17 |
-| T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | pending | 2026-07-17 |
+| T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | done | 2026-07-17 |
 | T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | pending | 2026-07-17 |
 | T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
 | T-007 | Phase 5 — human projection + team layer | pending | 2026-07-17 |
 | T-008 | Chore — pre-existing lint/type/coverage baseline debt | pending | 2026-07-17 |
 
 ---
-
-### T-004 · Traversal API + session bootstrap
-Status:   pending
-Touched:  2026-07-17
-Blocked-by: T-002, T-003
-
-Purpose:  Agents must enter at any level and get budgeted context without raw file reads —
-          the graph-is-the-interface principle.
-Impact:   orchestrator/ (scoring over intent nodes), mcp/server.py. Unblocks T-006.
-Verify:   Bootstrap answers 10 canned why-questions on this repo with correct citations and
-          zero raw file reads; degradation-ladder test passes with SQLite index deleted.
-
-Decisions:
-  - 2026-07-17: Mandatory degradation ladder intent→code-graph→files; tools never hard-fail
-    on missing/stale layers (resilience NFR-R2).
 
 ### T-005 · Honesty machinery
 Status:   pending
@@ -82,6 +67,31 @@ Decisions: (none yet)
 ---
 
 ## Archive
+
+### T-004 · Traversal API + session bootstrap
+Status:   done
+Owner:    2026-07-17a
+Touched:  2026-07-17
+
+Purpose:  Agents must enter at any level and get budgeted context without raw file reads —
+          the graph-is-the-interface principle.
+Impact:   intentgraph/{traversal,bootstrap}.py; core/tokens.py (estimate_tokens hoisted out
+          of orchestrator/assembler so lower layers share it); MCP tools bootstrap +
+          get_intent with ladder fall-through to v1 get_context. Unblocks T-006.
+Verify:   PASSED 2026-07-17 — 877 tests green (16 new); 10 canned why-questions each cite
+          the correct node (test_bootstrap.TestTenCannedQuestions), zero raw file reads;
+          deleted-SQLite-index test self-heals via journal replay; live dogfood smoke on
+          this repo: 3 real v2 whys recorded, bootstrap cited the right node with honest
+          "weak" coverage label; mypy strict + ruff clean on new files.
+
+Decisions:
+  - 2026-07-17: Mandatory degradation ladder intent→code-graph→files; tools never hard-fail
+    on missing/stale layers (resilience NFR-R2). Ladder lives in the MCP handler; the
+    bootstrapper only reports coverage (none/weak/good) to keep layering clean.
+  - 2026-07-17: Scoring = term-overlap × trust × status × freshness with a 0.5 freshness
+    floor — old intent is still intent. Orientation (L0/L1) always packs first.
+  - 2026-07-17: This repo's own intent journal is now live (dogfooding) — journal.jsonl
+    is committed, intent-graph.db is git-ignored.
 
 ### T-003 · Build capture loop
 Status:   done
