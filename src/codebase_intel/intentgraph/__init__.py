@@ -4,6 +4,12 @@ Journal-first architecture: the append-only JSONL journal in the repo is the
 source of truth; the SQLite store is a derived, rebuildable query index.
 """
 
+from codebase_intel.intentgraph.anchors import (
+    AnchorRepairer,
+    RepairReport,
+    coverage_report,
+    find_conflicts,
+)
 from codebase_intel.intentgraph.bootstrap import (
     BootstrapItem,
     BootstrapResult,
@@ -28,6 +34,7 @@ from codebase_intel.intentgraph.store import IntentGraphStore, MaterializeResult
 from codebase_intel.intentgraph.traversal import TraversalService
 
 __all__ = [
+    "AnchorRepairer",
     "BootstrapItem",
     "BootstrapResult",
     "CaptureResult",
@@ -46,9 +53,12 @@ __all__ = [
     "JournalOp",
     "MaterializeResult",
     "MigrationResult",
+    "RepairReport",
     "TraversalService",
     "TrustTier",
     "classify_diff",
+    "coverage_report",
+    "find_conflicts",
     "migrate_v1_decisions",
     "run_gate",
 ]

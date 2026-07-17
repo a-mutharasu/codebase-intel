@@ -8,25 +8,12 @@
 | T-002 | Phase 0 — intent graph foundation (models, journal-first store, v1 migration) | done | 2026-07-17 |
 | T-003 | Phase 1 — capture loop (record_why, check_precedent, git-hook gate, classifier) | done | 2026-07-17 |
 | T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | done | 2026-07-17 |
-| T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | pending | 2026-07-17 |
+| T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | done | 2026-07-17 |
 | T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
 | T-007 | Phase 5 — human projection + team layer | pending | 2026-07-17 |
 | T-008 | Chore — pre-existing lint/type/coverage baseline debt | pending | 2026-07-17 |
 
 ---
-
-### T-005 · Honesty machinery
-Status:   pending
-Touched:  2026-07-17
-Blocked-by: T-002
-
-Purpose:  "Every claim stays anchored to code" — without re-anchoring and staleness the
-          graph becomes the Lucidchart rot it exists to replace.
-Impact:   drift/, graph/, new anchor-repair job. Highest engineering risk (hotspot #3).
-Verify:   Refactor-simulation suite: rename/move/split → ≥90% auto-reanchor, remainder
-          queued for review, zero silent anchor loss.
-
-Decisions: (none yet)
 
 ### T-006 · Eval harness
 Status:   pending
@@ -67,6 +54,29 @@ Decisions: (none yet)
 ---
 
 ## Archive
+
+### T-005 · Honesty machinery
+Status:   done
+Owner:    2026-07-17a
+Touched:  2026-07-17
+
+Purpose:  "Every claim stays anchored to code" — without re-anchoring and staleness the
+          graph becomes the Lucidchart rot it exists to replace.
+Impact:   intentgraph/anchors.py (AnchorRepairer, content index, conflicts, coverage);
+          capture now hashes anchors at record time; CLI intent-check.
+Verify:   PASSED 2026-07-17 — 889 tests green (12 new); refactor simulation (9 renames +
+          1 split) → 90% auto-reanchor, split queued for review, zero silent anchor loss
+          (all anchors accounted in findings); divergence marks nodes stale; duplicate
+          content treated as ambiguous, never guessed; second run stable; live
+          intent-check on this repo backfilled 4 anchor hashes; mypy + ruff clean.
+
+Decisions:
+  - 2026-07-17: Auto-repair ONLY on exact content-hash match at exactly one new path;
+    everything else queues for review — a wrong anchor is worse than a dead one.
+  - 2026-07-17: Dead anchors are kept on the node (tagged anchor-orphaned, node stale),
+    never dropped — zero-silent-loss is the invariant tests enforce.
+  - 2026-07-17: Legacy anchors without hashes get backfilled on first validation
+    instead of being treated as diverged.
 
 ### T-004 · Traversal API + session bootstrap
 Status:   done

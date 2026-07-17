@@ -1190,6 +1190,67 @@ def intent_migrate(
     asyncio.run(_run())
 
 
+@app.command(name="intent-check")
+def intent_check(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Validate intent anchors against the code: repair moves, flag drift, report health."""
+    _setup_logging(verbose)
+
+    async def _run() -> None:
+        from codebase_intel.intentgraph import IntentGraphStore, IntentJournal
+        from codebase_intel.intentgraph.anchors import (
+            AnchorRepairer,
+            coverage_report,
+            find_conflicts,
+        )
+
+        config = _intentgraph_config(path)
+        journal = IntentJournal(config.intentgraph.journal_dir)
+        async with IntentGraphStore.open(config.intentgraph.db_path) as store:
+            await store.materialize(journal)
+            report = await AnchorRepairer(journal, store).validate_and_repair(
+                config.project_root
+            )
+            conflicts = await find_conflicts(store)
+            health = await coverage_report(store)
+
+        table = Table(title="Anchor validation")
+        table.add_column("Metric", style="bold")
+        table.add_column("Count", justify="right")
+        table.add_row("Nodes checked", str(report.nodes_checked))
+        table.add_row("Anchors checked", str(report.anchors_checked))
+        table.add_row("Valid", f"[green]{report.valid}[/green]")
+        table.add_row("Hash backfilled", str(report.backfilled))
+        table.add_row("Auto-repaired (moved)", f"[cyan]{report.repaired}[/cyan]")
+        table.add_row("Diverged (marked stale)", f"[yellow]{report.diverged}[/yellow]")
+        table.add_row("Queued for review", f"[red]{report.queued}[/red]")
+        console.print(table)
+
+        for finding in report.findings:
+            if finding.outcome in ("repaired", "diverged", "queued"):
+                console.print(
+                    f"  [{finding.outcome}] {finding.anchor_path}"
+                    + (f" → {finding.new_path}" if finding.new_path else "")
+                    + (f" ({finding.detail})" if finding.detail else "")
+                )
+
+        if conflicts:
+            console.print(f"\n[yellow]{len(conflicts)} potential conflicts:[/yellow]")
+            for a, b, reason in conflicts[:10]:
+                console.print(f"  {a} vs {b}: {reason}")
+
+        console.print(
+            f"\nHealth: {health['total_nodes']} nodes, "
+            f"{health['stale_pct']}% stale, "
+            f"{health['missing_why_backlog']} missing-why, "
+            f"{health['orphaned_anchors']} orphaned"
+        )
+
+    asyncio.run(_run())
+
+
 @app.command(name="intent-rebuild")
 def intent_rebuild(
     path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),

@@ -81,7 +81,13 @@ class CaptureService:
         parent_id: str | None = None,
     ) -> CaptureResult:
         """Record one why. The journal append is the durability point."""
-        anchors = [CodeAnchor(file_path=Path(p)) for p in (file_paths or [])]
+        from codebase_intel.intentgraph.anchors import hash_file
+
+        # Hash at capture time so divergence is detectable later (honesty machinery)
+        anchors = [
+            CodeAnchor(file_path=Path(p), content_hash=hash_file(Path(p)))
+            for p in (file_paths or [])
+        ]
         node = IntentNode(
             node_id=IntentNode.make_id(level, title),
             level=level,
