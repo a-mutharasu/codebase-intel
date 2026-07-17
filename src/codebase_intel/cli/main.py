@@ -1251,6 +1251,57 @@ def intent_check(
     asyncio.run(_run())
 
 
+@app.command(name="intent-confirm")
+def intent_confirm(
+    node_id: Annotated[str, typer.Argument(help="Intent node ID to promote")],
+    by: Annotated[str, typer.Option("--by", help="Reviewer name")] = "human",
+    owner: str = typer.Option("", "--owner", help="Owning person/team for this subtree"),
+    path: Annotated[Path, typer.Option("--path", "-p", help="Project root")] = Path("."),
+) -> None:
+    """Promote an agent-asserted why to confirmed trust after review."""
+    from codebase_intel.intentgraph import CaptureService, IntentJournal
+
+    config = _intentgraph_config(path)
+    journal = IntentJournal(config.intentgraph.journal_dir)
+    capture = CaptureService(journal, config.intentgraph.db_path, actor="cli")
+
+    node = asyncio.run(capture.promote(node_id, reviewer=by, owner=owner or None))
+    if node is None:
+        console.print(f"[red]Node {node_id} not found[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Confirmed[/green] {node.node_id}: {node.title} (by {by})")
+
+
+@app.command(name="intent-render")
+def intent_render(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+    fmt: str = typer.Option("html", "--format", "-f", help="mermaid | html"),
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Output file (default: stdout)")
+    ] = None,
+) -> None:
+    """Render the intent graph for humans (read-only projection of the same graph)."""
+
+    async def _run() -> str:
+        from codebase_intel.intentgraph import IntentJournal
+        from codebase_intel.intentgraph.render import IntentRenderer
+
+        config = _intentgraph_config(path)
+        renderer = IntentRenderer(
+            IntentJournal(config.intentgraph.journal_dir), config.intentgraph.db_path
+        )
+        if fmt == "mermaid":
+            return await renderer.to_mermaid()
+        return await renderer.to_html(project_name=config.project_root.name)
+
+    rendered = asyncio.run(_run())
+    if output is not None:
+        output.write_text(rendered, encoding="utf-8")
+        console.print(f"[green]Wrote[/green] {output}")
+    else:
+        print(rendered)
+
+
 @app.command(name="intent-rebuild")
 def intent_rebuild(
     path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),

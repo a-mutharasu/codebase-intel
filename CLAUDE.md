@@ -56,6 +56,9 @@ src/codebase_intel/
 ├── contracts/     # models.py, parser.py, evaluator.py, registry.py
 ├── orchestrator/  # assembler.py, budget.py, scorer.py, conflict.py
 ├── drift/         # detector.py, reporter.py
+├── intentgraph/   # v2 core: models, journal (JSONL truth), store (SQLite index),
+│                  #   capture, classifier, gate, traversal, bootstrap, anchors,
+│                  #   render, migrate — the multi-level intent graph
 ├── workspace/     # manager.py, registry.py — global multi-project workspace
 ├── crossrepo/     # models.py, scanner.py, registry.py — cross-service deps
 ├── analytics/     # tracker.py, benchmark.py, feedback.py
@@ -81,7 +84,17 @@ src/codebase_intel/
 - Content hashing via xxhash for change detection
 - ISO 8601 for all timestamps, UTC timezone
 
+## Intent Graph (v2)
+- Journal-first: `.codebase-intel/intent-journal/*.jsonl` is committed source of truth;
+  `intent-graph.db` is a derived, rebuildable index (git-ignored)
+- Trust tiers: mined → derived → asserted (agent) → confirmed (human) — surfaced in every render
+- MCP tools: record_why, check_precedent, bootstrap, get_intent
+- CLI: why, intent-gate, install-hooks, intent-check, intent-confirm, intent-render,
+  intent-migrate, intent-rebuild
+- Degradation ladder everywhere: intent graph → code graph → raw files, never hard-fail
+- See docs/V2-PLAN.md (requirements/design) and docs/TASK-LEDGER.md (state)
+
 ## Current Focus
-- Initial architecture build-out with comprehensive edge case handling
-- Core module implementation
-- MCP server interface design
+- v2 intent graph: Phases 0–3 + projection shipped (see TASK-LEDGER)
+- Next: eval harness (T-006, needs production repos), team layer depth, pre-existing
+  lint/type/coverage debt (T-008)

@@ -180,6 +180,38 @@ class CaptureService:
             await store.materialize(self._journal)
         return CaptureResult(node)
 
+    async def promote(
+        self,
+        node_id: str,
+        reviewer: str,
+        owner: str | None = None,
+    ) -> IntentNode | None:
+        """Promote an asserted/mined why to confirmed after human review.
+
+        Returns the updated node, or None when the node doesn't exist.
+        The original author is preserved; the reviewer lands in metadata.
+        """
+        async with IntentGraphStore.open(self._db_path) as store:
+            await store.materialize(self._journal)
+            node = await store.get_node(node_id)
+            if node is None:
+                return None
+            metadata = {**node.metadata, "reviewed_by": reviewer}
+            if owner:
+                metadata["owner"] = owner
+            self._journal.append(
+                JournalEntry.make(
+                    JournalOp.UPDATE_NODE,
+                    {
+                        "node_id": node_id,
+                        "changes": {"trust": TrustTier.CONFIRMED.value, "metadata": metadata},
+                    },
+                    actor=reviewer,
+                )
+            )
+            await store.materialize(self._journal)
+            return await store.get_node(node_id)
+
     async def check_precedent(
         self,
         query: str | None = None,

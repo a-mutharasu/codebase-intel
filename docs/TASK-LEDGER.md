@@ -10,7 +10,7 @@
 | T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | done | 2026-07-17 |
 | T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | done | 2026-07-17 |
 | T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
-| T-007 | Phase 5 — human projection + team layer | pending | 2026-07-17 |
+| T-007 | Phase 5 — human projection + review promotion | done | 2026-07-17 |
 | T-008 | Chore — pre-existing lint/type/coverage baseline debt | pending | 2026-07-17 |
 
 ---
@@ -23,17 +23,6 @@ Blocked-by: T-004; needs read access to 2–3 real repos (user to provide)
 Purpose:  The bet claims token AND correctness gains; unmeasured, it stays a vibe.
 Impact:   analytics/benchmark.py extension.
 Verify:   Published A/B numbers (bootstrap vs file-reading) on real repos vs v1 baseline.
-
-Decisions: (none yet)
-
-### T-007 · Human projection + team layer
-Status:   pending
-Touched:  2026-07-17
-Blocked-by: T-004, T-005
-
-Purpose:  Render-for-humans-second principle; ownership/review enables confirmed-tier whys.
-Impact:   New export/render path; CLI review queue.
-Verify:   Mermaid/HTML render of this repo's graph is legible; promotion flow round-trips.
 
 Decisions: (none yet)
 
@@ -54,6 +43,26 @@ Decisions: (none yet)
 ---
 
 ## Archive
+
+### T-007 · Human projection + review promotion
+Status:   done
+Owner:    2026-07-17a
+Touched:  2026-07-17
+
+Purpose:  Render-for-humans-second principle; review promotion enables confirmed-tier whys.
+Impact:   intentgraph/render.py (Mermaid + dependency-free static HTML);
+          CaptureService.promote; CLI intent-render + intent-confirm;
+          docs/intent-graph.html (live render of this repo's graph).
+Verify:   PASSED 2026-07-17 — 897 tests green (8 new); Mermaid + HTML render of this
+          repo's graph is legible (3 nodes, badges, standalone, no JS/CDN); promotion
+          round-trip: asserted → intent-confirm → confirmed with reviewer/owner in
+          metadata, original author preserved, visible in fresh render.
+
+Decisions:
+  - 2026-07-17: HTML render is dependency-free (nested <details>, inline CSS, zero JS) —
+    works offline/air-gapped; Mermaid export for docs that support it.
+  - 2026-07-17: Scope boundary — deeper team features (multi-user review queues, history
+    UI, access control) deliberately deferred; promote+owner metadata is the seed.
 
 ### T-005 · Honesty machinery
 Status:   done
