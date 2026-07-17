@@ -185,6 +185,18 @@ def create_server(
         except Exception:
             _state["intent_available"] = False
 
+        # Initialize intent graph capture (v2)
+        try:
+            from codebase_intel.intentgraph import CaptureService, IntentJournal
+
+            journal = IntentJournal(config.intentgraph.journal_dir)
+            _state["intentgraph_capture"] = CaptureService(
+                journal, config.intentgraph.db_path, actor="mcp"
+            )
+            _state["intentgraph_available"] = True
+        except Exception:
+            _state["intentgraph_available"] = False
+
         _state["initialized"] = True
         return _state
 
@@ -501,6 +513,82 @@ def create_server(
                     },
                 },
             ),
+            Tool(
+                name="record_why",
+                description=(
+                    "Record WHY a structural decision was made, at the moment you make it. "
+                    "Call this whenever you add a module, change an architecture boundary, "
+                    "pick an algorithm/library, or reverse a previous decision. The why "
+                    "becomes a permanent, traversable node in the intent graph."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Short name, e.g. 'Token bucket for rate limiting'",
+                        },
+                        "why": {
+                            "type": "string",
+                            "description": (
+                                "The rationale: constraints, alternatives rejected, trade-off taken"
+                            ),
+                        },
+                        "level": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3,
+                            "default": 3,
+                            "description": (
+                                "0=system topology, 1=service/module, "
+                                "2=component/flow, 3=function/decision"
+                            ),
+                        },
+                        "files": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Code files/dirs this decision anchors to",
+                        },
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "supersedes": {
+                            "type": "string",
+                            "description": "Node ID of a prior decision this one replaces",
+                        },
+                        "parent_id": {
+                            "type": "string",
+                            "description": (
+                                "Higher-level intent node this belongs under (CONTAINS edge)"
+                            ),
+                        },
+                    },
+                    "required": ["title", "why"],
+                },
+            ),
+            Tool(
+                name="check_precedent",
+                description=(
+                    "Check whether a decision was already made (or made and reversed) "
+                    "before proposing an approach. Call this BEFORE making structural "
+                    "choices — superseded results mean 'we tried that and changed course', "
+                    "which you must not silently repeat."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "What you're about to decide, e.g. 'rate limiting algorithm'"
+                            ),
+                        },
+                        "files": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Files you're about to change",
+                        },
+                    },
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -549,6 +637,10 @@ def create_server(
                 result = await _handle_check_intent(state, arguments)
             elif name == "list_intents":
                 result = await _handle_list_intents(state, arguments)
+            elif name == "record_why":
+                result = await _handle_record_why(state, arguments)
+            elif name == "check_precedent":
+                result = await _handle_check_precedent(state, arguments)
             else:
                 result = {"error": f"Unknown tool: {name}"}
         except Exception as exc:
@@ -1185,6 +1277,75 @@ def create_server(
                 }
                 for i in all_intents
             ],
+        }
+
+    async def _handle_record_why(
+        state: dict[str, Any], args: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Capture a why into the intent graph at decision time."""
+        capture = state.get("intentgraph_capture")
+        if not capture:
+            return {
+                "error": "Intent graph not available",
+                "suggestion": "Run `codebase-intel init` in the project root",
+            }
+
+        from codebase_intel.intentgraph import IntentLevel
+
+        result = await capture.record_why(
+            title=args["title"],
+            why=args["why"],
+            level=IntentLevel(int(args.get("level", 3))),
+            file_paths=args.get("files", []),
+            tags=args.get("tags", []),
+            author=args.get("author", "agent"),
+            supersedes=args.get("supersedes"),
+            parent_id=args.get("parent_id"),
+        )
+        return {
+            "node_id": result.node.node_id,
+            "title": result.node.title,
+            "level": int(result.node.level),
+            "trust": result.node.trust.value,
+            "warnings": result.warnings,
+            "note": (
+                "Recorded as 'asserted' trust — a human can promote it to "
+                "'confirmed' after review."
+            ),
+        }
+
+    async def _handle_check_precedent(
+        state: dict[str, Any], args: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Surface prior decisions (including reversed ones) before a new one is made."""
+        capture = state.get("intentgraph_capture")
+        if not capture:
+            return {
+                "error": "Intent graph not available",
+                "suggestion": "Run `codebase-intel init` in the project root",
+            }
+
+        nodes = await capture.check_precedent(
+            query=args.get("query"),
+            file_paths=args.get("files"),
+        )
+        return {
+            "total": len(nodes),
+            "matches": [
+                {
+                    "node_id": n.node_id,
+                    "level": int(n.level),
+                    "status": n.status.value,
+                    "trust": n.trust.value,
+                    "content": n.to_context_string(verbose=True),
+                }
+                for n in nodes
+            ],
+            "guidance": (
+                "Superseded matches mean this was tried and reversed — do not repeat "
+                "them without recording a new why that supersedes the reversal. "
+                "No matches means no precedent: record your decision with record_why."
+            ),
         }
 
     return server

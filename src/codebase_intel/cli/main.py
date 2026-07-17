@@ -20,15 +20,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+
+if TYPE_CHECKING:
+    from codebase_intel.core.config import ProjectConfig
 
 app = typer.Typer(
     name="codebase-intel",
@@ -114,8 +116,8 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
     ) as progress:
         task = progress.add_task("Building code graph...", total=None)
 
-        from codebase_intel.graph.storage import GraphStorage
         from codebase_intel.graph.builder import GraphBuilder
+        from codebase_intel.graph.storage import GraphStorage
 
         async with GraphStorage.open(config.graph, project_root) as storage:
             builder = GraphBuilder(config, storage)
@@ -436,7 +438,7 @@ async def _detect_patterns_async(project_root: Path, save: bool) -> None:
 @app.command(name="crossrepo")
 def crossrepo(
     paths: Annotated[
-        Optional[list[Path]],
+        list[Path] | None,
         typer.Argument(help="Paths to service repos (space-separated). Omit with --all."),
     ] = None,
     all_registered: bool = typer.Option(False, "--all", "-A", help="Scan all globally registered projects"),
@@ -543,7 +545,7 @@ def crossrepo(
 
 @app.command()
 def serve(
-    path: Annotated[Optional[Path], typer.Argument(help="Project root (omit for --auto mode)")] = None,
+    path: Annotated[Path | None, typer.Argument(help="Project root (omit for --auto mode)")] = None,
     auto: bool = typer.Option(False, "--auto", "-a", help="Workspace-aware mode: serve all registered projects"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -579,8 +581,8 @@ def serve(
 @app.command()
 def register(
     path: Annotated[Path, typer.Argument(help="Project root to register")] = Path("."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Display name for the project"),
-    project_id: Optional[str] = typer.Option(None, "--id", help="Custom project ID (default: directory name)"),
+    name: str | None = typer.Option(None, "--name", "-n", help="Display name for the project"),
+    project_id: str | None = typer.Option(None, "--id", help="Custom project ID (default: directory name)"),
 ) -> None:
     """Register a project in the global registry.
 
@@ -1061,6 +1063,156 @@ def dashboard(
             )
 
     tracker.close()
+
+
+# -------------------------------------------------------------------
+# Intent graph (v2)
+# -------------------------------------------------------------------
+
+_HOOK_MARKER = "# codebase-intel intent gate"
+_HOOK_SCRIPT = f"""#!/bin/sh
+{_HOOK_MARKER}
+codebase-intel intent-gate || exit $?
+"""
+
+
+def _intentgraph_config(path: Path) -> ProjectConfig:
+    from codebase_intel.core.config import ProjectConfig
+
+    return ProjectConfig(project_root=path)
+
+
+@app.command()
+def why(
+    title: Annotated[str, typer.Argument(help="Short name for the decision")],
+    reason: Annotated[str, typer.Argument(help="The why — rationale behind the decision")],
+    path: Annotated[Path, typer.Option("--path", "-p", help="Project root")] = Path("."),
+    files: Annotated[
+        list[str] | None, typer.Option("--file", "-f", help="Code files this why anchors to")
+    ] = None,
+    level: int = typer.Option(3, "--level", "-l", min=0, max=3, help="0=system … 3=decision"),
+    supersedes: str = typer.Option("", "--supersedes", help="Node ID this why replaces"),
+    tag: Annotated[list[str] | None, typer.Option("--tag", "-t")] = None,
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Record a why in the intent graph (human capture → confirmed trust)."""
+    _setup_logging(verbose)
+    from codebase_intel.intentgraph import CaptureService, IntentJournal, IntentLevel, TrustTier
+
+    config = _intentgraph_config(path)
+    journal = IntentJournal(config.intentgraph.journal_dir)
+    capture = CaptureService(journal, config.intentgraph.db_path, actor="cli")
+
+    result = asyncio.run(
+        capture.record_why(
+            title=title,
+            why=reason,
+            level=IntentLevel(level),
+            file_paths=files or [],
+            tags=tag or [],
+            author="human",
+            trust=TrustTier.CONFIRMED,
+            supersedes=supersedes or None,
+        )
+    )
+    console.print(f"[green]Recorded[/green] {result.node.node_id}: {result.node.title}")
+    for warning in result.warnings:
+        console.print(f"[yellow]warning:[/yellow] {warning}")
+
+
+@app.command(name="intent-gate")
+def intent_gate(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Pre-commit gate: warn (or block, if configured hard) on unexplained structural changes."""
+    _setup_logging(verbose)
+    from codebase_intel.intentgraph import run_gate
+
+    config = _intentgraph_config(path)
+    result = asyncio.run(
+        run_gate(config.project_root, config.intentgraph, hard=config.intentgraph.gate_hard)
+    )
+    for message in result.messages:
+        console.print(f"[yellow]{message}[/yellow]")
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="install-hooks")
+def install_hooks(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+) -> None:
+    """Install the pre-commit intent gate into .git/hooks."""
+    hooks_dir = path.resolve() / ".git" / "hooks"
+    if not hooks_dir.is_dir():
+        console.print("[red]No .git/hooks directory — is this a git repo?[/red]")
+        raise typer.Exit(code=1)
+
+    hook_path = hooks_dir / "pre-commit"
+    if hook_path.exists() and _HOOK_MARKER not in hook_path.read_text(encoding="utf-8"):
+        console.print(
+            "[yellow]A pre-commit hook already exists. Add this line to it manually:[/yellow]\n"
+            "  codebase-intel intent-gate || exit $?"
+        )
+        raise typer.Exit(code=1)
+
+    hook_path.write_text(_HOOK_SCRIPT, encoding="utf-8")
+    hook_path.chmod(0o755)
+    console.print(f"[green]Installed[/green] intent gate at {hook_path}")
+
+
+@app.command(name="intent-migrate")
+def intent_migrate(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Migrate v1 decision records into the intent graph (safe to re-run)."""
+    _setup_logging(verbose)
+
+    async def _run() -> None:
+        from codebase_intel.decisions.store import DecisionStore
+        from codebase_intel.intentgraph import IntentGraphStore, IntentJournal
+        from codebase_intel.intentgraph.migrate import migrate_v1_decisions
+
+        config = _intentgraph_config(path)
+        decision_store = DecisionStore(config.decisions, config.project_root)
+        journal = IntentJournal(config.intentgraph.journal_dir)
+        async with IntentGraphStore.open(config.intentgraph.db_path) as store:
+            result = await migrate_v1_decisions(decision_store, journal, store)
+        console.print(
+            f"[green]Migrated {result.migrated}[/green] "
+            f"(skipped {result.skipped}, superseded {result.superseded}, edges {result.edges})"
+        )
+        for warning in result.warnings:
+            console.print(f"[yellow]warning:[/yellow] {warning}")
+
+    asyncio.run(_run())
+
+
+@app.command(name="intent-rebuild")
+def intent_rebuild(
+    path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Rebuild the intent index from the journal (recovery path — always safe)."""
+    _setup_logging(verbose)
+
+    async def _run() -> None:
+        from codebase_intel.intentgraph import IntentGraphStore, IntentJournal
+
+        config = _intentgraph_config(path)
+        journal = IntentJournal(config.intentgraph.journal_dir)
+        async with IntentGraphStore.open(config.intentgraph.db_path) as store:
+            result = await store.rebuild(journal)
+        console.print(
+            f"[green]Rebuilt[/green] — applied {result.applied} entries, "
+            f"{len(result.errors)} errors"
+        )
+        for error in result.errors[:10]:
+            console.print(f"[yellow]{error}[/yellow]")
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

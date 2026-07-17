@@ -6,7 +6,7 @@
 |---|---|---|---|
 | T-001 | v2 requirements analysis & robust plan | done | 2026-07-17 |
 | T-002 | Phase 0 — intent graph foundation (models, journal-first store, v1 migration) | done | 2026-07-17 |
-| T-003 | Phase 1 — capture loop (record_why, check_precedent, git-hook gate, classifier) | pending | 2026-07-17 |
+| T-003 | Phase 1 — capture loop (record_why, check_precedent, git-hook gate, classifier) | done | 2026-07-17 |
 | T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | pending | 2026-07-17 |
 | T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | pending | 2026-07-17 |
 | T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
@@ -14,21 +14,6 @@
 | T-008 | Chore — pre-existing lint/type/coverage baseline debt | pending | 2026-07-17 |
 
 ---
-
-### T-003 · Build capture loop
-Status:   pending
-Touched:  2026-07-17
-Blocked-by: T-002
-
-Purpose:  Capture-at-decision-time is the core loop of v2; without enforcement + low
-          friction the graph stays empty and the vision fails (hotspot #1).
-Impact:   mcp/server.py (new tools), new git hook, significance classifier. Unblocks T-004.
-Verify:   Integration test: structural commit without why → warning + missing-why backlog
-          node; mechanical commit → silent. Capture append < 50ms.
-
-Decisions:
-  - 2026-07-17: Soft gate by default, hard mode opt-in per repo (V2-PLAN.md D1) —
-    hard-blocking by default gets uninstalled on the first blocked hotfix.
 
 ### T-004 · Traversal API + session bootstrap
 Status:   pending
@@ -97,6 +82,31 @@ Decisions: (none yet)
 ---
 
 ## Archive
+
+### T-003 · Build capture loop
+Status:   done
+Owner:    2026-07-17a
+Touched:  2026-07-17
+
+Purpose:  Capture-at-decision-time is the core loop of v2; without enforcement + low
+          friction the graph stays empty and the vision fails (hotspot #1).
+Impact:   intentgraph/{capture,classifier,gate}.py; MCP tools record_why + check_precedent;
+          CLI why/intent-gate/install-hooks/intent-migrate/intent-rebuild; gate_hard config.
+Verify:   PASSED 2026-07-17 — 861 tests green (27 new); integration: structural commit
+          without why → warning + missing-why backlog node, mechanical commit → silent,
+          staged-journal and existing-anchor both count as covered, hard mode blocks;
+          live CLI smoke on a scratch repo confirmed the full loop; append p95 = 4.7ms
+          (< 50ms bar); mypy strict + ruff clean on all new files.
+
+Decisions:
+  - 2026-07-17: Soft gate by default, hard mode opt-in per repo (V2-PLAN.md D1) —
+    hard-blocking by default gets uninstalled on the first blocked hotfix.
+  - 2026-07-17: Classifier is conservative by design (capture fatigue kills adoption):
+    tests/docs/lockfiles never significant; only new/deleted source, dependency
+    manifests, public-surface additions, and sensitive keywords trigger.
+  - 2026-07-17: check_precedent includes superseded nodes deliberately — "tried and
+    reversed" is the highest-value precedent. CLI capture gets confirmed trust (human);
+    MCP capture gets asserted (agent).
 
 ### T-002 · Build Phase 0 intent-graph foundation
 Status:   done

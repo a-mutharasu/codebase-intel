@@ -129,6 +129,10 @@ class IntentGraphConfig(BaseSettings):
         default=Path(".codebase-intel/intent-graph.db"),
         description="Derived SQLite index — rebuildable, git-ignored",
     )
+    gate_hard: bool = Field(
+        default=False,
+        description="Pre-commit gate blocks unexplained structural changes (default: warn only)",
+    )
 
 
 class ContractConfig(BaseSettings):
