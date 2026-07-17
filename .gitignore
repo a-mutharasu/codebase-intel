@@ -35,6 +35,10 @@ Thumbs.db
 .codebase-intel/graph.db
 .codebase-intel/graph.db-wal
 .codebase-intel/graph.db-shm
+# Intent graph: the SQLite index is derived and rebuildable — the journal (JSONL) IS committed
+.codebase-intel/intent-graph.db
+.codebase-intel/intent-graph.db-wal
+.codebase-intel/intent-graph.db-shm
 
 # Environment
 .env

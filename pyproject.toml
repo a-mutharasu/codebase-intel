@@ -95,6 +95,10 @@ ignore = ["S101"]  # allow assert in tests
 [tool.ruff.lint.isort]
 known-first-party = ["codebase_intel"]
 
+[tool.ruff.lint.flake8-type-checking]
+# Pydantic resolves field annotations at class-build time — those imports must stay runtime
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

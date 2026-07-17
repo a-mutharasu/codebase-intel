@@ -118,6 +118,19 @@ class DecisionConfig(BaseSettings):
     )
 
 
+class IntentGraphConfig(BaseSettings):
+    """Intent graph (v2) configuration."""
+
+    journal_dir: Path = Field(
+        default=Path(".codebase-intel/intent-journal"),
+        description="Append-only JSONL journal — source of truth, committed to git",
+    )
+    db_path: Path = Field(
+        default=Path(".codebase-intel/intent-graph.db"),
+        description="Derived SQLite index — rebuildable, git-ignored",
+    )
+
+
 class ContractConfig(BaseSettings):
     """Quality contract configuration."""
 
@@ -202,6 +215,7 @@ class ProjectConfig(BaseSettings):
     parser: ParserConfig = Field(default_factory=ParserConfig)
     graph: GraphConfig = Field(default_factory=GraphConfig)
     decisions: DecisionConfig = Field(default_factory=DecisionConfig)
+    intentgraph: IntentGraphConfig = Field(default_factory=IntentGraphConfig)
     contracts: ContractConfig = Field(default_factory=ContractConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     drift: DriftConfig = Field(default_factory=DriftConfig)
@@ -235,6 +249,10 @@ class ProjectConfig(BaseSettings):
         object.__setattr__(
             self.contracts, "contracts_dir", _resolve(self.contracts.contracts_dir)
         )
+        object.__setattr__(
+            self.intentgraph, "journal_dir", _resolve(self.intentgraph.journal_dir)
+        )
+        object.__setattr__(self.intentgraph, "db_path", _resolve(self.intentgraph.db_path))
         return self
 
     def ensure_dirs(self) -> None:
@@ -242,6 +260,8 @@ class ProjectConfig(BaseSettings):
         self.graph.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.decisions.decisions_dir.mkdir(parents=True, exist_ok=True)
         self.contracts.contracts_dir.mkdir(parents=True, exist_ok=True)
+        self.intentgraph.journal_dir.mkdir(parents=True, exist_ok=True)
+        self.intentgraph.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def to_yaml_dict(self) -> dict[str, Any]:
         """Export as a dict suitable for YAML serialization (config template)."""
