@@ -9,22 +9,47 @@
 | T-003 | Phase 1 — capture loop (record_why, check_precedent, git-hook gate, classifier) | done | 2026-07-17 |
 | T-004 | Phase 2 — traversal API, session bootstrap, degradation ladder | done | 2026-07-17 |
 | T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | done | 2026-07-17 |
-| T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
+| T-006 | Phase 4 — eval harness (built+verified; blocked on more repos for broader A/B) | blocked | 2026-07-18 |
 | T-007 | Phase 5 — human projection + review promotion | done | 2026-07-17 |
 | T-008 | Chore — pre-existing v1 test coverage debt (ruff/mypy portion done) | in-progress | 2026-07-18 |
 
 ---
 
 ### T-006 · Eval harness
-Status:   pending
-Touched:  2026-07-17
-Blocked-by: T-004; needs read access to 2–3 real repos (user to provide)
+Status:   blocked
+Owner:    2026-07-18a
+Touched:  2026-07-18
+Blocked-by: needs the user to supply 2+ additional real repo paths for a broader A/B
+            (the harness itself is code-complete, tested, and has run end-to-end)
 
 Purpose:  The bet claims token AND correctness gains; unmeasured, it stays a vibe.
-Impact:   analytics/benchmark.py extension.
-Verify:   Published A/B numbers (bootstrap vs file-reading) on real repos vs v1 baseline.
+Impact:   New analytics/eval.py (IntentEvalRunner/Report), analytics/naive.py and
+          core/text.py (extracted from benchmark.py/bootstrap.py to keep both harnesses'
+          "naive" baseline and query tokenization identical, not duplicated), tracker.py
+          (intent_eval_runs table), CLI `intent-eval` (accepts multiple repo paths already,
+          so no further code changes are needed once more repos are available).
+Verify:   PARTIALLY PASSED 2026-07-18 — harness built, 913 tests green (17 new), mypy+ruff
+          clean; ran end-to-end against this repo (self-hosted, real captured intent
+          nodes, not fixtures): 3 eligible cases, 100% accuracy@1/@3, 99% avg token
+          reduction (185.8x) — see docs/EVAL-RESULTS.md. The literal verify bar
+          ("real repos", plural, vs v1 baseline) needs repos beyond this one; publishing
+          on n=1 self-hosted data is a first data point, not the full claim.
 
-Decisions: (none yet)
+Decisions:
+  - 2026-07-18: Correctness metric is retrieval precision (does bootstrap cite the right
+    prior decision for a paraphrased question), not end-to-end agent task success — a
+    true task-outcome eval needs real agent runs, a materially larger effort out of
+    scope for this pass. Documented explicitly in EVAL-RESULTS.md so the number isn't
+    over-claimed.
+  - 2026-07-18: Query synthesis holds out the node's own TITLE terms from its WHY text —
+    prevents the harness from trivially "finding" a node by echoing its name, same
+    validated shape as test_bootstrap.py's TestTenCannedQuestions generalized to any repo.
+  - 2026-07-18: Naive-read-cost heuristic reused verbatim from v1's benchmark.py (moved to
+    analytics/naive.py) so the two harnesses' baselines mean the same thing and are
+    comparable side by side.
+  - 2026-07-18: CLI accepts multiple repo paths up front and combines results — status is
+    "blocked" not "done" specifically because that capability is unexercised until repos
+    are supplied, not because anything is unbuilt.
 
 ### T-008 · Chore: pre-existing v1 test coverage debt
 Status:   in-progress

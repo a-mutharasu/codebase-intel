@@ -20,12 +20,12 @@ Edge cases:
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from codebase_intel.core.text import extract_terms
 from codebase_intel.core.tokens import estimate_tokens
 from codebase_intel.intentgraph.models import (
     IntentLevel,
@@ -38,42 +38,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from codebase_intel.intentgraph.journal import IntentJournal
-
-_WORD_RE = re.compile(r"[a-z0-9_]+")
-
-# Terms too generic to signal relevance on their own
-_STOPWORDS = {
-    "the",
-    "a",
-    "an",
-    "to",
-    "for",
-    "of",
-    "in",
-    "on",
-    "and",
-    "or",
-    "is",
-    "are",
-    "add",
-    "fix",
-    "make",
-    "update",
-    "change",
-    "new",
-    "with",
-    "this",
-    "that",
-    "code",
-    "file",
-    "files",
-    "implement",
-    "why",
-    "how",
-    "what",
-    "does",
-    "do",
-}
 
 _STATUS_WEIGHT = {
     IntentNodeStatus.ACTIVE: 1.0,
@@ -109,15 +73,11 @@ class BootstrapResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-def _terms(text: str) -> set[str]:
-    return {w for w in _WORD_RE.findall(text.casefold()) if w not in _STOPWORDS and len(w) > 2}
-
-
 def score_node(node: IntentNode, task_terms: set[str], now: datetime) -> float:
     """Relevance x trust x status x freshness. Zero when no term overlaps."""
     if not task_terms:
         return 0.0
-    node_terms = _terms(f"{node.title} {node.why} {' '.join(node.tags)}")
+    node_terms = extract_terms(f"{node.title} {node.why} {' '.join(node.tags)}")
     overlap = len(task_terms & node_terms) / len(task_terms)
     if overlap == 0.0:
         return 0.0
@@ -138,7 +98,7 @@ class IntentBootstrapper:
         self._db_path = db_path
 
     async def bootstrap(self, task: str, budget_tokens: int = 4000) -> BootstrapResult:
-        task_terms = _terms(task)
+        task_terms = extract_terms(task)
         now = datetime.now(UTC)
         warnings: list[str] = []
 

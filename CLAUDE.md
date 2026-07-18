@@ -90,11 +90,14 @@ src/codebase_intel/
 - Trust tiers: mined → derived → asserted (agent) → confirmed (human) — surfaced in every render
 - MCP tools: record_why, check_precedent, bootstrap, get_intent
 - CLI: why, intent-gate, install-hooks, intent-check, intent-confirm, intent-render,
-  intent-migrate, intent-rebuild
+  intent-migrate, intent-rebuild, intent-eval
 - Degradation ladder everywhere: intent graph → code graph → raw files, never hard-fail
+- Eval harness (T-006): `codebase-intel intent-eval <repo...>` — token AND correctness
+  A/B (accuracy@1/@3, naive-vs-citation token reduction) vs the v1 baseline. See
+  docs/EVAL-RESULTS.md for methodology and this repo's self-hosted numbers.
 - See docs/V2-PLAN.md (requirements/design) and docs/TASK-LEDGER.md (state)
 
 ## Current Focus
-- v2 intent graph: Phases 0–3 + projection shipped (see TASK-LEDGER)
-- Next: eval harness (T-006, needs production repos), team layer depth, pre-existing
-  lint/type/coverage debt (T-008)
+- v2 intent graph: Phases 0–5 + eval harness shipped (see TASK-LEDGER)
+- Next: eval harness needs 2–3 external production repos for a broader A/B (T-006
+  remains open for that), team layer depth, pre-existing coverage debt (T-008)

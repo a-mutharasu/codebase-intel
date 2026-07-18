@@ -255,31 +255,9 @@ class BenchmarkRunner:
         )
 
         # --- NAIVE: what an agent without context tools typically reads ---
-        # Agents usually read the target file + parent dir + any file they
-        # can grep for imports. We simulate: all files in parent dir + parent's
-        # parent dir (2 levels up from each target file).
-        naive_content = ""
-        naive_files: set[Path] = set()
-        code_extensions = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".rb"}
-        for fp in existing_paths:
-            for ancestor_dir in [fp.parent, fp.parent.parent]:
-                if not ancestor_dir.exists():
-                    continue
-                try:
-                    for child in ancestor_dir.iterdir():
-                        if (
-                            child.is_file()
-                            and child.suffix in code_extensions
-                            and child not in naive_files
-                        ):
-                            naive_files.add(child)
-                            with contextlib.suppress(OSError):
-                                naive_content += child.read_text(encoding="utf-8", errors="ignore")
-                except OSError:
-                    pass
+        from codebase_intel.analytics.naive import estimate_naive_read_cost
 
-        result.naive_tokens = estimate_tokens(naive_content)
-        result.naive_files = len(naive_files)
+        result.naive_tokens, result.naive_files = estimate_naive_read_cost(existing_paths)
 
         # --- GRAPH: use code graph for relevant files ---
         start = time.monotonic()

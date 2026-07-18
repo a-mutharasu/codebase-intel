@@ -39,6 +39,13 @@ Thumbs.db
 .codebase-intel/intent-graph.db
 .codebase-intel/intent-graph.db-wal
 .codebase-intel/intent-graph.db-shm
+# Analytics/benchmark/eval history — local telemetry, not project state
+.codebase-intel/analytics.db
+.codebase-intel/analytics.db-wal
+.codebase-intel/analytics.db-shm
+.codebase-intel/feedback.db
+.codebase-intel/feedback.db-wal
+.codebase-intel/feedback.db-shm
 
 # Environment
 .env

@@ -93,6 +93,21 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     build_time_ms REAL NOT NULL DEFAULT 0,
     metadata_json TEXT DEFAULT '{}'
 );
+
+-- v2 intent-graph eval: token AND correctness A/B, distinct from benchmark_runs
+-- (v1 code-graph token-only A/B) — see analytics/eval.py
+CREATE TABLE IF NOT EXISTS intent_eval_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    repo_path TEXT NOT NULL,
+    total_cases INTEGER NOT NULL DEFAULT 0,
+    accuracy_at_1 REAL NOT NULL DEFAULT 0,
+    accuracy_at_3 REAL NOT NULL DEFAULT 0,
+    avg_reduction_pct REAL NOT NULL DEFAULT 0,
+    avg_multiplier REAL NOT NULL DEFAULT 0,
+    results_json TEXT NOT NULL DEFAULT '[]'
+);
 """
 
 
@@ -240,6 +255,42 @@ class AnalyticsTracker:
         conn.commit()
         return cursor.lastrowid or 0
 
+    def record_intent_eval(
+        self,
+        repo_name: str,
+        repo_path: str,
+        total_cases: int,
+        accuracy_at_1: float,
+        accuracy_at_3: float,
+        avg_reduction_pct: float,
+        avg_multiplier: float,
+        results: list[dict[str, Any]],
+    ) -> int:
+        """Record an intent-graph eval run (token AND correctness A/B)."""
+        conn = self._get_conn()
+        cursor = conn.execute(
+            """
+            INSERT INTO intent_eval_runs (
+                timestamp, repo_name, repo_path, total_cases,
+                accuracy_at_1, accuracy_at_3, avg_reduction_pct, avg_multiplier,
+                results_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now(UTC).isoformat(),
+                repo_name,
+                repo_path,
+                total_cases,
+                round(accuracy_at_1, 4),
+                round(accuracy_at_3, 4),
+                round(avg_reduction_pct, 1),
+                round(avg_multiplier, 2),
+                json.dumps(results),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid or 0
+
     # -------------------------------------------------------------------
     # Query metrics
     # -------------------------------------------------------------------
@@ -322,6 +373,17 @@ class AnalyticsTracker:
         rows = conn.execute(
             """
             SELECT * FROM benchmark_runs
+            ORDER BY timestamp DESC
+            """,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_intent_eval_results(self) -> list[dict[str, Any]]:
+        """Get all intent-graph eval run results."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            """
+            SELECT * FROM intent_eval_runs
             ORDER BY timestamp DESC
             """,
         ).fetchall()

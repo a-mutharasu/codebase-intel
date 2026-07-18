@@ -981,6 +981,112 @@ async def _benchmark_async(project_root: Path) -> None:
 
 
 # -------------------------------------------------------------------
+# intent-eval
+# -------------------------------------------------------------------
+
+
+@app.command(name="intent-eval")
+def intent_eval(
+    paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Project root(s) to evaluate. Omit for the current directory."),
+    ] = None,
+    max_cases: int = typer.Option(10, "--max-cases", "-n", help="Max eval cases per repo"),
+    budget_tokens: int = typer.Option(2000, "--budget", "-b", help="Bootstrap token budget"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Intent-graph eval — token AND correctness A/B vs the v1 baseline (T-006).
+
+    Held-out questions are synthesized from each intent node's WHY text with
+    its own title terms removed, so the harness must find the node by how its
+    reasoning is described, not by an exact name match. Reports whether
+    bootstrap surfaces the right precedent (accuracy) and how many fewer
+    tokens that costs vs reading files naively (reduction).
+
+    Pass multiple repo paths to run the same eval across several projects
+    and get a combined report — that is how a broader A/B beyond this repo
+    gets built once more repos are available.
+    """
+    _setup_logging(verbose)
+    targets = [p.resolve() for p in paths] if paths else [Path(".").resolve()]
+    asyncio.run(_intent_eval_async(targets, max_cases, budget_tokens))
+
+
+async def _intent_eval_async(targets: list[Path], max_cases: int, budget_tokens: int) -> None:
+    from codebase_intel.analytics.eval import IntentEvalRunner
+    from codebase_intel.analytics.tracker import AnalyticsTracker
+
+    all_results = []
+    for project_root in targets:
+        tracker = AnalyticsTracker(project_root / ".codebase-intel" / "analytics.db")
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task(f"Evaluating {project_root.name}...", total=None)
+            runner = IntentEvalRunner(project_root)
+            report = await runner.run(
+                tracker=tracker, max_cases=max_cases, budget_tokens=budget_tokens
+            )
+            progress.update(task, description="Done!", completed=True)
+
+        tracker.close()
+        all_results.append(report)
+
+        console.print()
+        if not report.results:
+            console.print(f"[yellow]{report.repo_name}:[/yellow] {report.warnings[0]}")
+            continue
+
+        table = Table(title=f"Intent Eval — {report.repo_name}")
+        table.add_column("Query (why, title-terms held out)", style="dim")
+        table.add_column("Found", justify="center")
+        table.add_column("Rank", justify="right")
+        table.add_column("Naive", justify="right", style="red")
+        table.add_column("Citation", justify="right", style="green")
+        table.add_column("Reduction", justify="right", style="bold cyan")
+
+        for r in report.results:
+            mark = (
+                "[green]✓[/green]"
+                if r.correct
+                else ("[yellow]~[/yellow]" if r.found else "[red]✗[/red]")
+            )
+            table.add_row(
+                r.query[:50],
+                mark,
+                str(r.rank) if r.rank else "-",
+                f"{r.naive_tokens:,}",
+                f"{r.citation_tokens:,}",
+                f"{r.reduction_pct:.0f}%",
+            )
+        console.print(table)
+        console.print(
+            f"[bold]Accuracy@1:[/bold] {report.accuracy_at_1:.0%}  "
+            f"[bold]Accuracy@3:[/bold] {report.accuracy_at_3:.0%}  "
+            f"[bold]Avg reduction:[/bold] {report.avg_reduction_pct:.0f}% "
+            f"({report.avg_multiplier:.1f}x)"
+        )
+
+    if len(all_results) > 1:
+        scored = [r for r in all_results if r.results]
+        if scored:
+            combined_acc1 = sum(r.accuracy_at_1 for r in scored) / len(scored)
+            combined_reduction = sum(r.avg_reduction_pct for r in scored) / len(scored)
+            console.print()
+            console.print(
+                Panel(
+                    f"Across {len(scored)} repos: "
+                    f"[bold]{combined_acc1:.0%}[/bold] avg accuracy@1, "
+                    f"[bold]{combined_reduction:.0f}%[/bold] avg token reduction",
+                    title="Combined A/B",
+                )
+            )
+
+
+# -------------------------------------------------------------------
 # dashboard
 # -------------------------------------------------------------------
 
