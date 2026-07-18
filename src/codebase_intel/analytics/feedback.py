@@ -24,12 +24,14 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import UTC, datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
-class FeedbackType(str, Enum):
+class FeedbackType(StrEnum):
     """How the agent's output was received."""
 
     ACCEPTED = "accepted"  # Output used as-is or with minor edits
@@ -38,7 +40,7 @@ class FeedbackType(str, Enum):
     PARTIAL = "partial"  # Some parts used, some discarded
 
 
-class RejectionReason(str, Enum):
+class RejectionReason(StrEnum):
     """Why the output was rejected — maps to improvement actions."""
 
     WRONG_PATTERN = "wrong_pattern"  # Used a pattern the project doesn't follow
@@ -207,7 +209,8 @@ class FeedbackTracker:
             """
             SELECT
                 COUNT(*) as total,
-                SUM(CASE WHEN feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END) as accepted
+                SUM(CASE WHEN feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END)
+                    as accepted
             FROM feedback_events
             WHERE timestamp >= datetime('now', '-7 days')
             """
@@ -261,12 +264,14 @@ class FeedbackTracker:
             # Map rejection reasons to actionable suggestions
             suggestion = self._suggestion_for_reason(reason)
 
-            reasons.append({
-                "reason": reason,
-                "count": count,
-                "percentage": round(pct, 1),
-                "suggestion": suggestion,
-            })
+            reasons.append(
+                {
+                    "reason": reason,
+                    "count": count,
+                    "percentage": round(pct, 1),
+                    "suggestion": suggestion,
+                }
+            )
 
         return {
             "total_rejections": total_rejections,
@@ -306,7 +311,8 @@ class FeedbackTracker:
             """
             SELECT
                 COUNT(DISTINCT cs.session_id) as total,
-                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END) as accepted
+                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END)
+                    as accepted
             FROM context_sessions cs
             JOIN feedback_events fe ON cs.session_id = fe.session_id
             WHERE cs.decisions_provided > 0
@@ -318,7 +324,8 @@ class FeedbackTracker:
             """
             SELECT
                 COUNT(DISTINCT cs.session_id) as total,
-                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END) as accepted
+                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END)
+                    as accepted
             FROM context_sessions cs
             JOIN feedback_events fe ON cs.session_id = fe.session_id
             WHERE cs.decisions_provided = 0
@@ -330,7 +337,8 @@ class FeedbackTracker:
             """
             SELECT
                 COUNT(DISTINCT cs.session_id) as total,
-                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END) as accepted
+                SUM(CASE WHEN fe.feedback_type IN ('accepted', 'modified') THEN 1 ELSE 0 END)
+                    as accepted
             FROM context_sessions cs
             JOIN feedback_events fe ON cs.session_id = fe.session_id
             WHERE cs.contracts_provided > 0
@@ -387,13 +395,15 @@ class FeedbackTracker:
             suggestion = self._suggestion_for_reason(reason.value)
             conn.execute(
                 """
-                INSERT INTO learning_insights (timestamp, insight_type, description, confidence, action_taken)
+                INSERT INTO learning_insights
+                    (timestamp, insight_type, description, confidence, action_taken)
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     datetime.now(UTC).isoformat(),
                     "pattern_detected",
-                    f"Repeated rejection reason: {reason.value} ({count} times in 30 days). {suggestion}",
+                    f"Repeated rejection reason: {reason.value} "
+                    f"({count} times in 30 days). {suggestion}",
                     min(0.9, 0.3 + count * 0.1),
                     None,
                 ),
@@ -447,9 +457,7 @@ class FeedbackTracker:
             wod_rate = (without_dec["accepted"] or 0) / wod_total * 100
             diff = wd_rate - wod_rate
             if diff > 5:
-                parts.append(
-                    f"Sessions with decisions had {diff:.0f}% higher acceptance rate."
-                )
+                parts.append(f"Sessions with decisions had {diff:.0f}% higher acceptance rate.")
 
         wc_total = with_contracts["total"] or 0
         if wc_total >= 5:
@@ -483,7 +491,8 @@ class FeedbackTracker:
 
         conn.execute(
             """
-            INSERT INTO acceptance_trend (date, total_sessions, accepted, modified, rejected, partial, acceptance_rate)
+            INSERT INTO acceptance_trend
+                (date, total_sessions, accepted, modified, rejected, partial, acceptance_rate)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(date) DO UPDATE SET
                 total_sessions=excluded.total_sessions,
@@ -491,6 +500,14 @@ class FeedbackTracker:
                 rejected=excluded.rejected, partial=excluded.partial,
                 acceptance_rate=excluded.acceptance_rate
             """,
-            (today, total, row["accepted"] or 0, row["modified"] or 0, row["rejected"] or 0, row["partial"] or 0, round(rate, 1)),
+            (
+                today,
+                total,
+                row["accepted"] or 0,
+                row["modified"] or 0,
+                row["rejected"] or 0,
+                row["partial"] or 0,
+                round(rate, 1),
+            ),
         )
         conn.commit()

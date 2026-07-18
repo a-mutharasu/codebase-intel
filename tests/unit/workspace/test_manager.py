@@ -78,9 +78,7 @@ class TestWorkspaceManager:
         assert manager.loaded_projects == []
 
     @pytest.mark.asyncio()
-    async def test_resolve_by_project_id(
-        self, registry: GlobalRegistry, project_a: Path
-    ) -> None:
+    async def test_resolve_by_project_id(self, registry: GlobalRegistry, project_a: Path) -> None:
         registry.register(project_a)
         manager = WorkspaceManager(registry=registry)
 
@@ -98,9 +96,7 @@ class TestWorkspaceManager:
         assert "not found" in state["error"]
 
     @pytest.mark.asyncio()
-    async def test_resolve_by_file_path(
-        self, registry: GlobalRegistry, project_a: Path
-    ) -> None:
+    async def test_resolve_by_file_path(self, registry: GlobalRegistry, project_a: Path) -> None:
         registry.register(project_a)
         manager = WorkspaceManager(registry=registry)
 

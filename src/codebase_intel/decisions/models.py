@@ -20,13 +20,14 @@ Edge cases in schema design:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from codebase_intel.core.types import CodeAnchor, DecisionStatus
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class AlternativeConsidered(BaseModel):
@@ -106,9 +107,7 @@ class DecisionRecord(BaseModel):
     context: str = Field(
         description="The situation that prompted this decision — what problem were we solving?"
     )
-    decision: str = Field(
-        description="What was decided — the actual choice made"
-    )
+    decision: str = Field(description="What was decided — the actual choice made")
     consequences: list[str] = Field(
         default_factory=list,
         description="Known consequences (positive and negative) of this decision",
@@ -218,10 +217,7 @@ class DecisionRecord(BaseModel):
     @property
     def has_orphaned_anchors(self) -> bool:
         """Check if any code anchors reference files that don't exist."""
-        return any(
-            not anchor.file_path.exists()
-            for anchor in self.code_anchors
-        )
+        return any(not anchor.file_path.exists() for anchor in self.code_anchors)
 
     def relevance_score(self, file_paths: set[Path]) -> float:
         """Score how relevant this decision is to a set of files.
@@ -270,7 +266,7 @@ class DecisionRecord(BaseModel):
         lines = [
             f"## Decision: {self.title} [{self.id}]",
             f"Status: {self.status.value}",
-            f"",
+            "",
             f"**Context:** {self.context}",
             f"**Decision:** {self.decision}",
         ]
@@ -292,8 +288,8 @@ class DecisionRecord(BaseModel):
             if self.consequences:
                 lines.append("")
                 lines.append("**Consequences:**")
-                for c in self.consequences:
-                    lines.append(f"- {c}")
+                for consequence in self.consequences:
+                    lines.append(f"- {consequence}")
 
         if self.is_stale:
             lines.append("")

@@ -59,9 +59,7 @@ class TestMermaid:
             title="Token families", why="rotation", parent_id=parent.node.node_id
         )
         old = await capture.record_why(title="Single tokens", why="v1 approach")
-        await capture.record_why(
-            title="Family tokens", why="reversal", supersedes=old.node.node_id
-        )
+        await capture.record_why(title="Family tokens", why="reversal", supersedes=old.node.node_id)
 
         text = await renderer.to_mermaid()
 
@@ -83,9 +81,7 @@ class TestHtml:
     async def test_standalone_and_escaped(
         self, capture: CaptureService, renderer: IntentRenderer
     ) -> None:
-        await capture.record_why(
-            title="XSS <script> attempt", why="because <b>reasons</b> & more"
-        )
+        await capture.record_why(title="XSS <script> attempt", why="because <b>reasons</b> & more")
         html = await renderer.to_html(project_name="demo")
 
         assert html.startswith("<!doctype html>")

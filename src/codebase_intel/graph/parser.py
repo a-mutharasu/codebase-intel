@@ -30,11 +30,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import xxhash
 
-from codebase_intel.core.exceptions import ErrorContext, ParseError, UnsupportedLanguageError
 from codebase_intel.core.types import (
     EdgeKind,
     GraphEdge,
@@ -45,6 +44,8 @@ from codebase_intel.core.types import (
 )
 
 if TYPE_CHECKING:
+    from tree_sitter_language_pack import SupportedLanguage
+
     from codebase_intel.core.config import ParserConfig
 
 logger = logging.getLogger(__name__)
@@ -169,10 +170,7 @@ class FileParser:
             return True  # Outside project root — skip
 
         rel_str = str(rel)
-        return any(
-            fnmatch.fnmatch(rel_str, pattern)
-            for pattern in self._config.ignored_patterns
-        )
+        return any(fnmatch.fnmatch(rel_str, pattern) for pattern in self._config.ignored_patterns)
 
     def _is_generated(self, content: str) -> bool:
         """Check if file is generated code by examining its header.
@@ -304,9 +302,7 @@ class FileParser:
             or name.endswith(".spec")
             or name == "conftest"
         )
-        is_test_dir = any(
-            p in ("tests", "test", "__tests__", "spec", "specs") for p in parts
-        )
+        is_test_dir = any(p in ("tests", "test", "__tests__", "spec", "specs") for p in parts)
         return is_test_name or is_test_dir
 
     def _is_entry_point(self, file_path: Path, content: str) -> bool:
@@ -320,9 +316,7 @@ class FileParser:
         name = file_path.stem.lower()
         if name in ("main", "app", "manage", "server", "worker", "cli"):
             return True
-        if '__name__' in content and '__main__' in content:
-            return True
-        return False
+        return bool("__name__" in content and "__main__" in content)
 
     def _qualified_module_name(self, file_path: Path) -> str:
         """Build a Python-style qualified module name from file path.
@@ -357,9 +351,7 @@ class FileParser:
     # Python extraction
     # -------------------------------------------------------------------
 
-    async def _extract_python(
-        self, source: str, file_path: Path, result: ParseResult
-    ) -> None:
+    async def _extract_python(self, source: str, file_path: Path, result: ParseResult) -> None:
         """Extract Python nodes and edges using tree-sitter.
 
         Edge cases specific to Python:
@@ -373,7 +365,7 @@ class FileParser:
         - Nested functions/classes: qualified name must include parent
         """
         try:
-            from tree_sitter_language_pack import get_language, get_parser
+            from tree_sitter_language_pack import get_parser
         except ImportError:
             result.warnings.append("tree-sitter-language-pack not installed")
             await self._extract_python_regex(source, file_path, result)
@@ -386,7 +378,7 @@ class FileParser:
             result.had_syntax_errors = True
             result.warnings.append(f"Syntax errors in {file_path} — partial extraction")
 
-        lines = source.split("\n")
+        source.split("\n")
         module_id = result.module_node_id
         in_type_checking = False
 
@@ -410,23 +402,26 @@ class FileParser:
                         for stmt in body.children:
                             if stmt.type in ("import_statement", "import_from_statement"):
                                 edges = self._parse_python_import(
-                                    stmt, source, file_path, module_id,
+                                    stmt,
+                                    source,
+                                    file_path,
+                                    module_id,
                                     is_type_only=True,
                                 )
                                 result.edges.extend(edges)
 
             # --- Classes ---
             elif node_type == "class_definition":
-                class_node = self._parse_python_class(
-                    child, source, file_path, result
-                )
+                class_node = self._parse_python_class(child, source, file_path, result)
                 if class_node:
                     result.nodes.append(class_node)
-                    result.edges.append(GraphEdge(
-                        source_id=module_id,
-                        target_id=class_node.node_id,
-                        kind=EdgeKind.DEPENDS_ON,
-                    ))
+                    result.edges.append(
+                        GraphEdge(
+                            source_id=module_id,
+                            target_id=class_node.node_id,
+                            kind=EdgeKind.DEPENDS_ON,
+                        )
+                    )
 
             # --- Functions ---
             elif node_type == "function_definition":
@@ -487,14 +482,16 @@ class FileParser:
             is_dynamic = False
             confidence = 1.0 if not is_dynamic else 0.6
 
-            edges.append(GraphEdge(
-                source_id=module_id,
-                target_id=target_id,
-                kind=EdgeKind.IMPORTS,
-                confidence=confidence,
-                is_type_only=is_type_only,
-                metadata={"raw_import": text.strip()},
-            ))
+            edges.append(
+                GraphEdge(
+                    source_id=module_id,
+                    target_id=target_id,
+                    kind=EdgeKind.IMPORTS,
+                    confidence=confidence,
+                    is_type_only=is_type_only,
+                    metadata={"raw_import": text.strip()},
+                )
+            )
 
         return edges
 
@@ -520,7 +517,7 @@ class FileParser:
                     level = len(dots.group(1))
                     package_parts = self._get_package_parts(file_path)
                     if level <= len(package_parts):
-                        base = ".".join(package_parts[: -level] if level > 0 else package_parts)
+                        base = ".".join(package_parts[:-level] if level > 0 else package_parts)
                         rest = re.match(r"from\s+\.+\s*([\w.]*)\s+import", import_text)
                         if rest and rest.group(1):
                             return f"{base}.{rest.group(1)}" if base else rest.group(1)
@@ -637,11 +634,13 @@ class FileParser:
                 NodeKind.CLASS,
                 superclass.split(".")[-1],
             )
-            result.edges.append(GraphEdge(
-                source_id=class_node.node_id,
-                target_id=target_id,
-                kind=EdgeKind.INHERITS,
-            ))
+            result.edges.append(
+                GraphEdge(
+                    source_id=class_node.node_id,
+                    target_id=target_id,
+                    kind=EdgeKind.INHERITS,
+                )
+            )
 
         return class_node
 
@@ -676,9 +675,11 @@ class FileParser:
 
         # Detect endpoint decorators
         kind = NodeKind.FUNCTION
-        is_endpoint = self._has_decorator(node, source, "route") or self._has_decorator(
-            node, source, "get"
-        ) or self._has_decorator(node, source, "post")
+        is_endpoint = (
+            self._has_decorator(node, source, "route")
+            or self._has_decorator(node, source, "get")
+            or self._has_decorator(node, source, "post")
+        )
         if is_endpoint:
             kind = NodeKind.ENDPOINT
 
@@ -690,7 +691,8 @@ class FileParser:
         if parent_qualified:
             qualified = f"{parent_qualified}.{name}"
 
-        is_async = self._node_text(node, source).strip().startswith("async ") if self._node_text(node, source) else False
+        node_text = self._node_text(node, source)
+        is_async = node_text.strip().startswith("async ") if node_text else False
 
         return GraphNode(
             node_id=GraphNode.make_id(file_path, kind, qualified),
@@ -727,15 +729,18 @@ class FileParser:
 
         if "__all__" in text:
             import re
+
             symbols = re.findall(r'["\'](\w+)["\']', text)
             module_id = result.module_node_id
             for symbol in symbols:
                 target_id = GraphNode.make_id(file_path, NodeKind.FUNCTION, symbol)
-                result.edges.append(GraphEdge(
-                    source_id=module_id,
-                    target_id=target_id,
-                    kind=EdgeKind.RE_EXPORTS,
-                ))
+                result.edges.append(
+                    GraphEdge(
+                        source_id=module_id,
+                        target_id=target_id,
+                        kind=EdgeKind.RE_EXPORTS,
+                    )
+                )
 
     # -------------------------------------------------------------------
     # JavaScript/TypeScript extraction
@@ -762,7 +767,8 @@ class FileParser:
             from tree_sitter_language_pack import get_parser
 
             grammar_name = LANGUAGE_GRAMMAR_MAP.get(detect_language(file_path), "javascript")
-            parser = get_parser(grammar_name)
+            # Map values are hand-maintained grammar names; cast narrows str to the pack's Literal
+            parser = get_parser(cast("SupportedLanguage", grammar_name))
 
             tree = parser.parse(source.encode("utf-8"))
 
@@ -773,7 +779,9 @@ class FileParser:
             await self._walk_js_tree(tree.root_node, source, file_path, result)
 
         except (ImportError, Exception) as exc:
-            result.warnings.append(f"tree-sitter grammar not available for {file_path.suffix}: {exc}")
+            result.warnings.append(
+                f"tree-sitter grammar not available for {file_path.suffix}: {exc}"
+            )
             await self._extract_js_regex(source, file_path, result)
 
     async def _walk_js_tree(
@@ -843,9 +851,9 @@ class FileParser:
         is_type_only = "import type" in text
 
         # Extract module path
-        match = re.search(r'''from\s+['"]([^'"]+)['"]''', text)
+        match = re.search(r"""from\s+['"]([^'"]+)['"]""", text)
         if not match:
-            match = re.search(r'''import\s+['"]([^'"]+)['"]''', text)
+            match = re.search(r"""import\s+['"]([^'"]+)['"]""", text)
         if not match:
             return None
 
@@ -861,9 +869,7 @@ class FileParser:
             metadata={"raw_import": text.strip(), "module_specifier": module_path},
         )
 
-    def _parse_require(
-        self, text: str, file_path: Path, module_id: str
-    ) -> GraphEdge | None:
+    def _parse_require(self, text: str, file_path: Path, module_id: str) -> GraphEdge | None:
         """Parse a CommonJS require() call.
 
         Edge case: `require(variable)` — can't resolve, create edge
@@ -871,7 +877,7 @@ class FileParser:
         """
         import re
 
-        match = re.search(r'''require\(['"]([^'"]+)['"]\)''', text)
+        match = re.search(r"""require\(['"]([^'"]+)['"]\)""", text)
         if not match:
             # Dynamic require — check if it's require(variable)
             match_dynamic = re.search(r"require\((\w+)\)", text)
@@ -919,9 +925,7 @@ class FileParser:
             # Bare specifier (package import) or alias
             return Path(f"node_modules/{specifier}/index.js")
 
-    def _parse_js_function(
-        self, node: object, source: str, file_path: Path
-    ) -> GraphNode | None:
+    def _parse_js_function(self, node: object, source: str, file_path: Path) -> GraphNode | None:
         """Parse a JS/TS function declaration."""
         name_node = getattr(node, "child_by_field_name", lambda _: None)("name")
         name = self._node_text(name_node, source) if name_node else None
@@ -947,9 +951,7 @@ class FileParser:
             },
         )
 
-    def _parse_js_class(
-        self, node: object, source: str, file_path: Path
-    ) -> GraphNode | None:
+    def _parse_js_class(self, node: object, source: str, file_path: Path) -> GraphNode | None:
         """Parse a JS/TS class declaration."""
         name_node = getattr(node, "child_by_field_name", lambda _: None)("name")
         name = self._node_text(name_node, source) if name_node else None
@@ -994,48 +996,54 @@ class FileParser:
                 module_name = self._extract_import_module(stripped, file_path)
                 if module_name:
                     target_path = self._resolve_module_path(module_name)
-                    target_id = GraphNode.make_id(target_path, NodeKind.MODULE, module_name.split(".")[-1])
-                    result.edges.append(GraphEdge(
-                        source_id=module_id,
-                        target_id=target_id,
-                        kind=EdgeKind.IMPORTS,
-                        confidence=0.9,  # Lower confidence for regex extraction
-                        metadata={"extraction": "regex"},
-                    ))
+                    target_id = GraphNode.make_id(
+                        target_path, NodeKind.MODULE, module_name.split(".")[-1]
+                    )
+                    result.edges.append(
+                        GraphEdge(
+                            source_id=module_id,
+                            target_id=target_id,
+                            kind=EdgeKind.IMPORTS,
+                            confidence=0.9,  # Lower confidence for regex extraction
+                            metadata={"extraction": "regex"},
+                        )
+                    )
 
             # Class definitions
             match = re.match(r"class\s+(\w+)", stripped)
             if match:
                 name = match.group(1)
-                result.nodes.append(GraphNode(
-                    node_id=GraphNode.make_id(file_path, NodeKind.CLASS, name),
-                    kind=NodeKind.CLASS,
-                    name=name,
-                    qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
-                    file_path=file_path,
-                    line_range=LineRange(start=line_no, end=line_no),
-                    language=Language.PYTHON,
-                    metadata={"extraction": "regex"},
-                ))
+                result.nodes.append(
+                    GraphNode(
+                        node_id=GraphNode.make_id(file_path, NodeKind.CLASS, name),
+                        kind=NodeKind.CLASS,
+                        name=name,
+                        qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
+                        file_path=file_path,
+                        line_range=LineRange(start=line_no, end=line_no),
+                        language=Language.PYTHON,
+                        metadata={"extraction": "regex"},
+                    )
+                )
 
             # Function definitions
             match = re.match(r"(?:async\s+)?def\s+(\w+)", stripped)
             if match:
                 name = match.group(1)
-                result.nodes.append(GraphNode(
-                    node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
-                    kind=NodeKind.FUNCTION,
-                    name=name,
-                    qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
-                    file_path=file_path,
-                    line_range=LineRange(start=line_no, end=line_no),
-                    language=Language.PYTHON,
-                    metadata={"is_async": "async" in stripped, "extraction": "regex"},
-                ))
+                result.nodes.append(
+                    GraphNode(
+                        node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
+                        kind=NodeKind.FUNCTION,
+                        name=name,
+                        qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
+                        file_path=file_path,
+                        line_range=LineRange(start=line_no, end=line_no),
+                        language=Language.PYTHON,
+                        metadata={"is_async": "async" in stripped, "extraction": "regex"},
+                    )
+                )
 
-    async def _extract_js_regex(
-        self, source: str, file_path: Path, result: ParseResult
-    ) -> None:
+    async def _extract_js_regex(self, source: str, file_path: Path, result: ParseResult) -> None:
         """Regex-based JS/TS extraction — fallback."""
         import re
 
@@ -1045,32 +1053,36 @@ class FileParser:
             stripped = line.strip()
 
             # ESM imports
-            match = re.search(r'''from\s+['"]([^'"]+)['"]''', stripped)
+            match = re.search(r"""from\s+['"]([^'"]+)['"]""", stripped)
             if match:
                 target_path = self._resolve_js_module(match.group(1), file_path)
                 target_id = GraphNode.make_id(target_path, NodeKind.MODULE, target_path.stem)
-                result.edges.append(GraphEdge(
-                    source_id=module_id,
-                    target_id=target_id,
-                    kind=EdgeKind.IMPORTS,
-                    confidence=0.9,
-                    metadata={"extraction": "regex"},
-                ))
+                result.edges.append(
+                    GraphEdge(
+                        source_id=module_id,
+                        target_id=target_id,
+                        kind=EdgeKind.IMPORTS,
+                        confidence=0.9,
+                        metadata={"extraction": "regex"},
+                    )
+                )
 
             # Function declarations
             match = re.match(r"(?:export\s+)?(?:async\s+)?function\s+(\w+)", stripped)
             if match:
                 name = match.group(1)
-                result.nodes.append(GraphNode(
-                    node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
-                    kind=NodeKind.FUNCTION,
-                    name=name,
-                    qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
-                    file_path=file_path,
-                    line_range=LineRange(start=line_no, end=line_no),
-                    language=detect_language(file_path),
-                    metadata={"extraction": "regex"},
-                ))
+                result.nodes.append(
+                    GraphNode(
+                        node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
+                        kind=NodeKind.FUNCTION,
+                        name=name,
+                        qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
+                        file_path=file_path,
+                        line_range=LineRange(start=line_no, end=line_no),
+                        language=detect_language(file_path),
+                        metadata={"extraction": "regex"},
+                    )
+                )
 
     # -------------------------------------------------------------------
     # Generic language extraction (all 19 languages via tree-sitter-language-pack)
@@ -1099,7 +1111,9 @@ class FileParser:
 
         try:
             from tree_sitter_language_pack import get_parser
-            parser = get_parser(grammar_name)
+
+            # Map values are hand-maintained grammar names; cast narrows str to the pack's Literal
+            parser = get_parser(cast("SupportedLanguage", grammar_name))
         except Exception as exc:
             result.warnings.append(f"No grammar for {language.value}: {exc}")
             return
@@ -1112,21 +1126,36 @@ class FileParser:
 
         # Node types that represent function/method definitions across languages
         function_types = {
-            "function_definition", "function_declaration", "method_definition",
-            "method_declaration", "function_item", "fun_spec",
+            "function_definition",
+            "function_declaration",
+            "method_definition",
+            "method_declaration",
+            "function_item",
+            "fun_spec",
         }
         # Node types that represent class/struct/interface definitions
         class_types = {
-            "class_definition", "class_declaration", "struct_item",
-            "interface_declaration", "trait_item", "type_declaration",
-            "struct_declaration", "enum_declaration", "enum_item",
+            "class_definition",
+            "class_declaration",
+            "struct_item",
+            "interface_declaration",
+            "trait_item",
+            "type_declaration",
+            "struct_declaration",
+            "enum_declaration",
+            "enum_item",
             "object_declaration",
         }
         # Node types that represent imports
         import_types = {
-            "import_declaration", "import_statement", "use_declaration",
-            "include_statement", "require_expression", "using_directive",
-            "import_from_statement", "preproc_include",
+            "import_declaration",
+            "import_statement",
+            "use_declaration",
+            "include_statement",
+            "require_expression",
+            "using_directive",
+            "import_from_statement",
+            "preproc_include",
         }
 
         for child in tree.root_node.children:
@@ -1138,15 +1167,17 @@ class FileParser:
                 if name:
                     start_line = getattr(child, "start_point", (0, 0))[0] + 1
                     end_line = getattr(child, "end_point", (0, 0))[0] + 1
-                    result.nodes.append(GraphNode(
-                        node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
-                        kind=NodeKind.FUNCTION,
-                        name=name,
-                        qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
-                        file_path=file_path,
-                        line_range=LineRange(start=start_line, end=end_line),
-                        language=language,
-                    ))
+                    result.nodes.append(
+                        GraphNode(
+                            node_id=GraphNode.make_id(file_path, NodeKind.FUNCTION, name),
+                            kind=NodeKind.FUNCTION,
+                            name=name,
+                            qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
+                            file_path=file_path,
+                            line_range=LineRange(start=start_line, end=end_line),
+                            language=language,
+                        )
+                    )
 
             elif child_type in class_types:
                 name_node = getattr(child, "child_by_field_name", lambda _: None)("name")
@@ -1154,28 +1185,38 @@ class FileParser:
                 if name:
                     start_line = getattr(child, "start_point", (0, 0))[0] + 1
                     end_line = getattr(child, "end_point", (0, 0))[0] + 1
-                    kind = NodeKind.INTERFACE if "interface" in child_type or "trait" in child_type else NodeKind.CLASS
-                    result.nodes.append(GraphNode(
-                        node_id=GraphNode.make_id(file_path, kind, name),
-                        kind=kind,
-                        name=name,
-                        qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
-                        file_path=file_path,
-                        line_range=LineRange(start=start_line, end=end_line),
-                        language=language,
-                    ))
+                    kind = (
+                        NodeKind.INTERFACE
+                        if "interface" in child_type or "trait" in child_type
+                        else NodeKind.CLASS
+                    )
+                    result.nodes.append(
+                        GraphNode(
+                            node_id=GraphNode.make_id(file_path, kind, name),
+                            kind=kind,
+                            name=name,
+                            qualified_name=f"{self._qualified_module_name(file_path)}.{name}",
+                            file_path=file_path,
+                            line_range=LineRange(start=start_line, end=end_line),
+                            language=language,
+                        )
+                    )
 
             elif child_type in import_types:
                 # Record a basic import edge
                 text = self._node_text(child, source)
                 if text:
-                    result.edges.append(GraphEdge(
-                        source_id=module_id,
-                        target_id=GraphNode.make_id(file_path, NodeKind.MODULE, f"_import_{hash(text) % 10000}"),
-                        kind=EdgeKind.IMPORTS,
-                        confidence=0.7,
-                        metadata={"raw_import": text.strip()[:200], "language": language.value},
-                    ))
+                    result.edges.append(
+                        GraphEdge(
+                            source_id=module_id,
+                            target_id=GraphNode.make_id(
+                                file_path, NodeKind.MODULE, f"_import_{hash(text) % 10000}"
+                            ),
+                            kind=EdgeKind.IMPORTS,
+                            confidence=0.7,
+                            metadata={"raw_import": text.strip()[:200], "language": language.value},
+                        )
+                    )
 
     # -------------------------------------------------------------------
     # Utility methods
@@ -1183,7 +1224,9 @@ class FileParser:
 
     def _extract_superclasses(self, class_node: object, source: str) -> list[str]:
         """Extract superclass names from a class definition node."""
-        superclasses_node = getattr(class_node, "child_by_field_name", lambda _: None)("superclasses")
+        superclasses_node = getattr(class_node, "child_by_field_name", lambda _: None)(
+            "superclasses"
+        )
         if not superclasses_node:
             return []
 
@@ -1193,6 +1236,7 @@ class FileParser:
 
         # Remove parens and split
         import re
+
         text = text.strip("()")
         return [s.strip() for s in re.split(r",\s*", text) if s.strip()]
 

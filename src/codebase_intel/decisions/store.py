@@ -20,18 +20,14 @@ Edge cases:
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from codebase_intel.core.exceptions import (
     ContractParseError,
-    DecisionConflictError,
     ErrorContext,
-    OrphanedDecisionError,
-    StaleDecisionError,
 )
 from codebase_intel.core.types import CodeAnchor, DecisionStatus, LineRange
 from codebase_intel.decisions.models import (
@@ -128,7 +124,8 @@ class DecisionStore:
 
         if not isinstance(data, dict):
             raise ContractParseError(
-                f"Decision file {yaml_file.name} must contain a YAML mapping, got {type(data).__name__}",
+                f"Decision file {yaml_file.name} must contain a YAML mapping, "
+                f"got {type(data).__name__}",
                 ErrorContext(file_path=yaml_file),
             )
 
@@ -139,12 +136,16 @@ class DecisionStore:
                 # Shorthand: "src/middleware/rate_limiter.py:15-82"
                 anchors.append(self._parse_anchor_shorthand(anchor_data))
             elif isinstance(anchor_data, dict):
-                anchors.append(CodeAnchor(
-                    file_path=Path(anchor_data["file_path"]),
-                    line_range=LineRange(**anchor_data["line_range"]) if "line_range" in anchor_data else None,
-                    symbol_name=anchor_data.get("symbol_name"),
-                    content_hash=anchor_data.get("content_hash"),
-                ))
+                anchors.append(
+                    CodeAnchor(
+                        file_path=Path(anchor_data["file_path"]),
+                        line_range=LineRange(**anchor_data["line_range"])
+                        if "line_range" in anchor_data
+                        else None,
+                        symbol_name=anchor_data.get("symbol_name"),
+                        content_hash=anchor_data.get("content_hash"),
+                    )
+                )
         data["code_anchors"] = anchors
 
         # Parse alternatives
@@ -213,7 +214,7 @@ class DecisionStore:
             return self._cache[decision_id]
 
         # Not in cache — scan directory
-        all_decisions = await self.load_all()
+        await self.load_all()
         return self._cache.get(decision_id)
 
     async def save(self, record: DecisionRecord) -> Path:
@@ -302,15 +303,15 @@ class DecisionStore:
         superseded_ids = {d.supersedes for d in active if d.supersedes}
         for decision in active:
             if decision.id in superseded_ids:
-                superseder = next(
-                    (d for d in active if d.supersedes == decision.id), None
-                )
+                superseder = next((d for d in active if d.supersedes == decision.id), None)
                 if superseder:
-                    conflicts.append((
-                        decision,
-                        superseder,
-                        f"{superseder.id} supersedes {decision.id} but both are active",
-                    ))
+                    conflicts.append(
+                        (
+                            decision,
+                            superseder,
+                            f"{superseder.id} supersedes {decision.id} but both are active",
+                        )
+                    )
 
         # Check for overlapping code anchors
         for i, d1 in enumerate(active):
@@ -321,9 +322,7 @@ class DecisionStore:
 
         return conflicts
 
-    def _check_anchor_overlap(
-        self, d1: DecisionRecord, d2: DecisionRecord
-    ) -> str | None:
+    def _check_anchor_overlap(self, d1: DecisionRecord, d2: DecisionRecord) -> str | None:
         """Check if two decisions have overlapping code anchors.
 
         Edge case: same file but different line ranges — only flag if ranges
@@ -388,7 +387,7 @@ class DecisionStore:
         file_path = self.decisions_dir / filename
         return file_path if file_path.exists() else None
 
-    def _record_to_yaml_dict(self, record: DecisionRecord) -> dict:
+    def _record_to_yaml_dict(self, record: DecisionRecord) -> dict[str, Any]:
         """Convert a DecisionRecord to a YAML-friendly dict.
 
         Edge case: datetime objects → ISO format strings for YAML.

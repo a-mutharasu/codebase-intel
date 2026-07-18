@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
 import aiosqlite
 
@@ -41,6 +41,8 @@ from codebase_intel.core.types import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from codebase_intel.core.config import GraphConfig
 
 logger = logging.getLogger(__name__)
@@ -203,9 +205,7 @@ class GraphStorage:
             return
 
         # Check version
-        cursor = await self._db.execute(
-            "SELECT MAX(version) FROM schema_version"
-        )
+        cursor = await self._db.execute("SELECT MAX(version) FROM schema_version")
         row = await cursor.fetchone()
         current_version = row[0] if row else 0
 
@@ -391,7 +391,8 @@ class GraphStorage:
             chunk = edges[i : i + chunk_size]
             await self._db.executemany(
                 """
-                INSERT INTO edges (source_id, target_id, kind, confidence, is_type_only, metadata_json)
+                INSERT INTO edges
+                    (source_id, target_id, kind, confidence, is_type_only, metadata_json)
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(source_id, target_id, kind) DO UPDATE SET
                     confidence=excluded.confidence,
@@ -422,11 +423,9 @@ class GraphStorage:
         the orchestrator can detect renames via content_hash matching.
         """
         stored_path = self._to_stored_path(file_path)
-        cursor = await self._db.execute(
-            "DELETE FROM nodes WHERE file_path = ?", (stored_path,)
-        )
+        cursor = await self._db.execute("DELETE FROM nodes WHERE file_path = ?", (stored_path,))
         await self._db.commit()
-        return cursor.rowcount  # type: ignore[return-value]
+        return cursor.rowcount
 
     # -------------------------------------------------------------------
     # Query operations
@@ -629,7 +628,7 @@ class GraphStorage:
                 elif target_id in rec_stack:
                     # Found a cycle
                     cycle_start = path.index(target_id)
-                    cycle = path[cycle_start:] + [target_id]
+                    cycle = [*path[cycle_start:], target_id]
                     cycles.append(cycle)
 
             path.pop()
@@ -670,9 +669,7 @@ class GraphStorage:
             seen: set[str] = set()
 
             for node in nodes:
-                dependents = await self.get_dependents(
-                    node.node_id, max_depth=max_depth
-                )
+                dependents = await self.get_dependents(node.node_id, max_depth=max_depth)
                 for dep in dependents:
                     if dep.node_id not in seen:
                         seen.add(dep.node_id)
@@ -722,7 +719,8 @@ class GraphStorage:
         stored_path = self._to_stored_path(file_path)
         await self._db.execute(
             """
-            INSERT INTO file_fingerprints (file_path, content_hash, size_bytes, last_modified, language, node_count)
+            INSERT INTO file_fingerprints
+                (file_path, content_hash, size_bytes, last_modified, language, node_count)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(file_path) DO UPDATE SET
                 content_hash=excluded.content_hash,

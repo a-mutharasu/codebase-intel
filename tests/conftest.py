@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
@@ -97,18 +100,18 @@ def sample_js_project(tmp_path: Path) -> Path:
     src.mkdir()
 
     (src / "utils.ts").write_text(
-        '''export function formatDate(date: Date): string {
+        """export function formatDate(date: Date): string {
     return date.toISOString();
 }
 
 export function capitalize(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
-'''
+"""
     )
 
     (src / "api.ts").write_text(
-        '''import { formatDate } from "./utils";
+        """import { formatDate } from "./utils";
 
 export interface User {
     id: number;
@@ -120,15 +123,15 @@ export async function fetchUser(id: number): Promise<User> {
     const response = await fetch(`/api/users/${id}`);
     return response.json();
 }
-'''
+"""
     )
 
     (src / "index.ts").write_text(
-        '''import { fetchUser } from "./api";
+        """import { fetchUser } from "./api";
 import { capitalize } from "./utils";
 
 export { fetchUser, capitalize };
-'''
+"""
     )
 
     return tmp_path

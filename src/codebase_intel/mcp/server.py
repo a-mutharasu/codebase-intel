@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -34,6 +34,9 @@ from mcp.types import TextContent, Tool
 
 from codebase_intel.core.config import ProjectConfig
 from codebase_intel.core.types import TokenBudget
+
+if TYPE_CHECKING:
+    from codebase_intel.workspace.manager import WorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +71,14 @@ def create_server(
     # Single-project state (backward compat)
     _state: dict[str, Any] = {"initialized": False}
 
-    def _get_workspace_manager() -> Any:
+    def _get_workspace_manager() -> WorkspaceManager:
         """Lazy-init the workspace manager for auto mode."""
         if _workspace["manager"] is None:
             from codebase_intel.workspace.manager import WorkspaceManager
 
             _workspace["manager"] = WorkspaceManager()
-        return _workspace["manager"]
+        manager: WorkspaceManager = _workspace["manager"]
+        return manager
 
     async def _ensure_initialized(
         file_path: str | None = None,
@@ -206,7 +210,8 @@ def create_server(
     # Tool: get_context
     # -------------------------------------------------------------------
 
-    @server.list_tools()
+    # mcp's decorator methods lack return-type annotations (no py.typed coverage there)
+    @server.list_tools()  # type: ignore[no-untyped-call, untyped-decorator]
     async def list_tools() -> list[Tool]:
         return [
             Tool(
@@ -221,12 +226,17 @@ def create_server(
                     "properties": {
                         "task": {
                             "type": "string",
-                            "description": "What you're trying to do (e.g., 'add rate limiting to payment endpoint')",
+                            "description": (
+                                "What you're trying to do "
+                                "(e.g., 'add rate limiting to payment endpoint')"
+                            ),
                         },
                         "files": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "File paths you're working on (relative to project root)",
+                            "description": (
+                                "File paths you're working on (relative to project root)"
+                            ),
                         },
                         "symbols": {
                             "type": "array",
@@ -291,7 +301,9 @@ def create_server(
                         "tags": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Decision tags to filter by (e.g., 'architecture', 'security')",
+                            "description": (
+                                "Decision tags to filter by (e.g., 'architecture', 'security')"
+                            ),
                         },
                         "decision_id": {
                             "type": "string",
@@ -338,7 +350,9 @@ def create_server(
                         "files": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Check drift for specific files (faster than full check)",
+                            "description": (
+                                "Check drift for specific files (faster than full check)"
+                            ),
                         },
                         "full": {
                             "type": "boolean",
@@ -401,9 +415,14 @@ def create_server(
                         "rejection_reason": {
                             "type": "string",
                             "enum": [
-                                "wrong_pattern", "missing_context", "violated_decision",
-                                "hallucinated", "over_engineered", "security_issue",
-                                "wrong_approach", "other",
+                                "wrong_pattern",
+                                "missing_context",
+                                "violated_decision",
+                                "hallucinated",
+                                "over_engineered",
+                                "security_issue",
+                                "wrong_approach",
+                                "other",
                             ],
                             "description": "Why the code was rejected (if feedback is 'rejected')",
                         },
@@ -459,10 +478,17 @@ def create_server(
                                     "criterion_type": {
                                         "type": "string",
                                         "enum": [
-                                            "file_exists", "file_contains", "function_exists",
-                                            "wired", "cli_works", "mcp_tool_exists",
-                                            "grep_match", "grep_no_match", "test_passes",
-                                            "manual", "custom",
+                                            "file_exists",
+                                            "file_contains",
+                                            "function_exists",
+                                            "wired",
+                                            "cli_works",
+                                            "mcp_tool_exists",
+                                            "grep_match",
+                                            "grep_no_match",
+                                            "test_passes",
+                                            "manual",
+                                            "custom",
                                         ],
                                     },
                                     "check_value": {"type": "string"},
@@ -492,7 +518,10 @@ def create_server(
                     "properties": {
                         "intent_id": {
                             "type": "string",
-                            "description": "Intent ID to verify (e.g., 'INT-001'). Omit to check all active intents.",
+                            "description": (
+                                "Intent ID to verify (e.g., 'INT-001'). "
+                                "Omit to check all active intents."
+                            ),
                         },
                     },
                 },
@@ -633,7 +662,8 @@ def create_server(
             ),
         ]
 
-    @server.call_tool()
+    # mcp's decorator methods lack return-type annotations (no py.typed coverage there)
+    @server.call_tool()  # type: ignore[untyped-decorator]
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Route tool calls to handlers.
 
@@ -649,10 +679,14 @@ def create_server(
         state = await _ensure_initialized(file_path=file_hint)
 
         if "error" in state:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": state["error"], "suggestion": "Run `codebase-intel init`"}),
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"error": state["error"], "suggestion": "Run `codebase-intel init`"}
+                    ),
+                )
+            ]
 
         try:
             if name == "get_context":
@@ -703,15 +737,15 @@ def create_server(
     # Tool handlers
     # -------------------------------------------------------------------
 
-    async def _handle_get_context(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_get_context(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Handle the main get_context tool."""
         from codebase_intel.orchestrator.assembler import ContextAssembler
 
         config = state["config"]
         file_paths = [Path(f) for f in args.get("files", [])]
-        budget = TokenBudget(total=args.get("budget_tokens", config.orchestrator.default_budget_tokens))
+        budget = TokenBudget(
+            total=args.get("budget_tokens", config.orchestrator.default_budget_tokens)
+        )
 
         # Build assembler with all available components wired in
         assembler = ContextAssembler(
@@ -753,9 +787,7 @@ def create_server(
             "conflicts": result.conflicts,
         }
 
-    async def _handle_query_graph(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_query_graph(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Handle graph queries."""
         if not state.get("graph_available"):
             return {
@@ -773,7 +805,9 @@ def create_server(
 
         if query_type == "dependencies":
             if "symbol" in args:
-                result = await engine.query_by_symbol(args["symbol"], include_depth=args.get("max_depth", 2))
+                result = await engine.query_by_symbol(
+                    args["symbol"], include_depth=args.get("max_depth", 2)
+                )
             elif "files" in args:
                 result = await engine.query_by_files(
                     [Path(f) for f in args["files"]],
@@ -788,7 +822,9 @@ def create_server(
                         "name": n.qualified_name,
                         "kind": n.kind.value,
                         "file": str(n.file_path),
-                        "lines": f"{n.line_range.start}-{n.line_range.end}" if n.line_range else None,
+                        "lines": f"{n.line_range.start}-{n.line_range.end}"
+                        if n.line_range
+                        else None,
                         "priority": result.priorities.get(n.node_id, "low"),
                         "reason": result.explanations.get(n.node_id, ""),
                     }
@@ -842,9 +878,7 @@ def create_server(
 
         return {"error": f"Unknown query_type: {query_type}"}
 
-    async def _handle_get_decisions(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_get_decisions(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Handle decision queries."""
         store = state.get("decisions")
         if not store:
@@ -882,25 +916,19 @@ def create_server(
         if "tags" in args:
             records = await store.query_by_tags(args["tags"])
             return {
-                "decisions": [
-                    {"id": r.id, "title": r.title, "tags": r.tags}
-                    for r in records[:20]
-                ],
+                "decisions": [{"id": r.id, "title": r.title, "tags": r.tags} for r in records[:20]],
             }
 
         # Return all
         all_records = await store.load_all()
         return {
             "decisions": [
-                {"id": r.id, "title": r.title, "status": r.status.value}
-                for r in all_records
+                {"id": r.id, "title": r.title, "status": r.status.value} for r in all_records
             ],
             "total": len(all_records),
         }
 
-    async def _handle_get_contracts(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_get_contracts(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Handle contract queries."""
         registry = state.get("contracts")
         if not registry:
@@ -913,32 +941,32 @@ def create_server(
             return {"error": f"Contract '{args['contract_id']}' not found"}
 
         if "files" in args:
-            all_contracts = []
+            all_contracts: list[dict[str, Any]] = []
             for f in args["files"]:
                 applicable = registry.get_for_file(Path(f))
                 for c in applicable:
                     if c.id not in {ac["id"] for ac in all_contracts}:
-                        all_contracts.append({
-                            "id": c.id,
-                            "name": c.name,
-                            "priority": c.priority,
-                            "rule_count": len(c.rules),
-                            "content": c.to_context_string(verbose=True),
-                        })
+                        all_contracts.append(
+                            {
+                                "id": c.id,
+                                "name": c.name,
+                                "priority": c.priority,
+                                "rule_count": len(c.rules),
+                                "content": c.to_context_string(verbose=True),
+                            }
+                        )
             return {"contracts": all_contracts}
 
         # Return all
-        all_contracts = registry.get_all()
+        every_contract = registry.get_all()
         return {
             "contracts": [
                 {"id": c.id, "name": c.name, "rules": len(c.rules), "builtin": c.is_builtin}
-                for c in all_contracts
+                for c in every_contract
             ],
         }
 
-    async def _handle_check_drift(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_check_drift(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Handle drift detection."""
         from codebase_intel.drift.detector import DriftDetector
 
@@ -996,8 +1024,7 @@ def create_server(
         if state.get("decisions"):
             scored = await state["decisions"].query_by_files(set(changed))
             decision_context = [
-                {"id": r.id, "title": r.title, "relevance": round(s, 2)}
-                for r, s in scored[:5]
+                {"id": r.id, "title": r.title, "relevance": round(s, 2)} for r, s in scored[:5]
             ]
 
         return {
@@ -1013,9 +1040,7 @@ def create_server(
             "related_decisions": decision_context,
         }
 
-    async def _handle_get_status(
-        state: dict[str, Any], _args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_get_status(state: dict[str, Any], _args: dict[str, Any]) -> dict[str, Any]:
         """Return component health status."""
         config = state.get("config")
         root = str(config.project_root) if config else str(_root)
@@ -1134,7 +1159,9 @@ def create_server(
                     for b in benchmarks[:5]
                 ]
         else:
-            report["token_efficiency"] = {"message": "No analytics data yet. Run `codebase-intel benchmark` to start."}
+            report["token_efficiency"] = {
+                "message": "No analytics data yet. Run `codebase-intel benchmark` to start."
+            }
 
         # Acceptance rate from feedback
         if feedback:
@@ -1149,7 +1176,9 @@ def create_server(
                     for i in insights
                 ]
         else:
-            report["acceptance_rate"] = {"message": "No feedback data yet. Use record_feedback after code reviews."}
+            report["acceptance_rate"] = {
+                "message": "No feedback data yet. Use record_feedback after code reviews."
+            }
 
         # Summary headline
         total_requests = 0
@@ -1179,9 +1208,7 @@ def create_server(
 
         return report
 
-    async def _handle_set_intent(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_set_intent(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Capture a user's intent with verifiable acceptance criteria."""
         intent_store = state.get("intent_store")
         if not intent_store:
@@ -1193,11 +1220,13 @@ def create_server(
 
         criteria = []
         for c in args.get("criteria", []):
-            criteria.append(AcceptanceCriterion(
-                description=c["description"],
-                criterion_type=CriterionType(c["criterion_type"]),
-                check_value=c["check_value"],
-            ))
+            criteria.append(
+                AcceptanceCriterion(
+                    description=c["description"],
+                    criterion_type=CriterionType(c["criterion_type"]),
+                    check_value=c["check_value"],
+                )
+            )
 
         intent = Intent(
             id=intent_id,
@@ -1219,14 +1248,11 @@ def create_server(
                 f"Call check_intent when you think you're done — it will verify everything."
             ),
             "criteria": [
-                {"description": c.description, "type": c.criterion_type.value}
-                for c in criteria
+                {"description": c.description, "type": c.criterion_type.value} for c in criteria
             ],
         }
 
-    async def _handle_check_intent(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_check_intent(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Verify whether acceptance criteria are actually met."""
         intent_store = state.get("intent_store")
         if not intent_store:
@@ -1250,10 +1276,14 @@ def create_server(
             # Update stored criteria with verification results
             updated_criteria = []
             for r in report.results:
-                updated_criteria.append(r.criterion.model_copy(update={
-                    "verified": r.passed,
-                    "failure_reason": r.failure_reason,
-                }))
+                updated_criteria.append(
+                    r.criterion.model_copy(
+                        update={
+                            "verified": r.passed,
+                            "failure_reason": r.failure_reason,
+                        }
+                    )
+                )
             intent_store.update_criteria(intent_id, updated_criteria)
             intent_store.update_status(intent_id, report.status)
 
@@ -1273,10 +1303,14 @@ def create_server(
 
                 updated_criteria = []
                 for r in report.results:
-                    updated_criteria.append(r.criterion.model_copy(update={
-                        "verified": r.passed,
-                        "failure_reason": r.failure_reason,
-                    }))
+                    updated_criteria.append(
+                        r.criterion.model_copy(
+                            update={
+                                "verified": r.passed,
+                                "failure_reason": r.failure_reason,
+                            }
+                        )
+                    )
                 intent_store.update_criteria(intent.id, updated_criteria)
                 intent_store.update_status(intent.id, report.status)
 
@@ -1291,13 +1325,14 @@ def create_server(
                 "summary": (
                     "All intents verified! Safe to mark as done."
                     if all_verified
-                    else f"{sum(1 for r in results if r['status'] != 'verified')}/{len(results)} intents have unmet criteria."
+                    else (
+                        f"{sum(1 for r in results if r['status'] != 'verified')}"
+                        f"/{len(results)} intents have unmet criteria."
+                    )
                 ),
             }
 
-    async def _handle_list_intents(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_list_intents(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """List all tracked intents."""
         intent_store = state.get("intent_store")
         if not intent_store:
@@ -1308,6 +1343,7 @@ def create_server(
 
         if status_filter != "all":
             from codebase_intel.intent.models import IntentStatus
+
             all_intents = [i for i in all_intents if i.status == IntentStatus(status_filter)]
 
         return {
@@ -1325,9 +1361,7 @@ def create_server(
             ],
         }
 
-    async def _handle_record_why(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_record_why(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Capture a why into the intent graph at decision time."""
         capture = state.get("intentgraph_capture")
         if not capture:
@@ -1355,8 +1389,7 @@ def create_server(
             "trust": result.node.trust.value,
             "warnings": result.warnings,
             "note": (
-                "Recorded as 'asserted' trust — a human can promote it to "
-                "'confirmed' after review."
+                "Recorded as 'asserted' trust — a human can promote it to 'confirmed' after review."
             ),
         }
 
@@ -1394,9 +1427,7 @@ def create_server(
             ),
         }
 
-    async def _handle_bootstrap(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_bootstrap(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Session bootstrap over the intent graph, with the degradation ladder."""
         if not state.get("intentgraph_available"):
             # Rung 1 missing entirely — hand the session to rung 2 (code graph)
@@ -1412,9 +1443,7 @@ def create_server(
 
         from codebase_intel.intentgraph.bootstrap import IntentBootstrapper
 
-        bootstrapper = IntentBootstrapper(
-            state["intentgraph_journal"], state["intentgraph_db"]
-        )
+        bootstrapper = IntentBootstrapper(state["intentgraph_journal"], state["intentgraph_db"])
         budget = int(args.get("budget_tokens", 4000))
         result = await bootstrapper.bootstrap(args["task"], budget_tokens=budget)
 
@@ -1437,9 +1466,7 @@ def create_server(
                 )
         return response
 
-    async def _handle_get_intent(
-        state: dict[str, Any], args: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _handle_get_intent(state: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
         """Traverse the intent graph by node, file, or level."""
         if not state.get("intentgraph_available"):
             return {

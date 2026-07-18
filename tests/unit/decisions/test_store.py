@@ -98,7 +98,8 @@ class TestLoadAll:
         assert records == []
 
     async def test_directory_does_not_exist(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         nonexistent = tmp_path / "nonexistent"
         cfg = DecisionConfig(decisions_dir=nonexistent)
@@ -107,7 +108,9 @@ class TestLoadAll:
         assert records == []
 
     async def test_single_file(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -118,7 +121,9 @@ class TestLoadAll:
         assert records[0].id == "DEC-001"
 
     async def test_multiple_files(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         for i in range(1, 4):
             _write_yaml(
@@ -131,7 +136,9 @@ class TestLoadAll:
         assert ids == {"DEC-001", "DEC-002", "DEC-003"}
 
     async def test_malformed_yaml_skipped(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         # Valid file
         _write_yaml(
@@ -148,7 +155,9 @@ class TestLoadAll:
         assert records[0].id == "DEC-001"
 
     async def test_empty_yaml_file_skipped(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -159,7 +168,9 @@ class TestLoadAll:
         assert len(records) == 1
 
     async def test_non_dict_yaml_skipped(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         """YAML file containing a list instead of a mapping should be skipped."""
         _write_yaml(
@@ -167,13 +178,16 @@ class TestLoadAll:
             _decision_data(),
         )
         (decisions_dir / "DEC-002.yaml").write_text(
-            "- item1\n- item2\n", encoding="utf-8",
+            "- item1\n- item2\n",
+            encoding="utf-8",
         )
         records = await store.load_all()
         assert len(records) == 1
 
     async def test_only_yaml_files_loaded(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -184,7 +198,9 @@ class TestLoadAll:
         assert len(records) == 1
 
     async def test_duplicate_ids_keeps_latest(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         """When two files share the same decision ID, the later-sorted file wins."""
         _write_yaml(
@@ -201,7 +217,9 @@ class TestLoadAll:
         assert records[0].title == "Second"
 
     async def test_file_with_code_anchor_shorthand(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         data = _decision_data(
             code_anchors=["src/api/handler.py:15-82"],
@@ -216,19 +234,25 @@ class TestLoadAll:
         assert anchor.line_range.end == 82
 
     async def test_file_with_alternatives_and_constraints(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         data = _decision_data(
-            alternatives=[{
-                "name": "Sliding window",
-                "description": "Count in sliding window",
-                "rejection_reason": "Higher memory",
-            }],
-            constraints=[{
-                "description": "p99 < 200ms",
-                "source": "sla",
-                "is_hard": True,
-            }],
+            alternatives=[
+                {
+                    "name": "Sliding window",
+                    "description": "Count in sliding window",
+                    "rejection_reason": "Higher memory",
+                }
+            ],
+            constraints=[
+                {
+                    "description": "p99 < 200ms",
+                    "source": "sla",
+                    "is_hard": True,
+                }
+            ],
         )
         _write_yaml(decisions_dir / "DEC-001.yaml", data)
         records = await store.load_all()
@@ -238,7 +262,9 @@ class TestLoadAll:
         assert records[0].constraints[0].description == "p99 < 200ms"
 
     async def test_constraint_as_string_shorthand(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         data = _decision_data(
             constraints=["Must use HTTPS"],
@@ -263,7 +289,8 @@ class TestSave:
         assert path.name == "DEC-001.yaml"
 
     async def test_round_trip_preserves_data(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         original = _minimal_record(
             tags=["architecture"],
@@ -288,7 +315,9 @@ class TestSave:
         assert reloaded.author == original.author
 
     async def test_save_with_code_anchors_round_trip(
-        self, store: DecisionStore, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        tmp_path: Path,
     ) -> None:
         anchor_file = tmp_path / "service.py"
         anchor_file.touch()
@@ -311,7 +340,8 @@ class TestSave:
         assert loaded_anchor.line_range.end == 50
 
     async def test_save_creates_directory_if_missing(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         new_dir = tmp_path / "new" / "decisions"
         cfg = DecisionConfig(decisions_dir=new_dir)
@@ -323,7 +353,8 @@ class TestSave:
         assert new_dir.exists()
 
     async def test_save_overwrites_existing_file(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         original = _minimal_record(title="Original Title")
         await store.save(original)
@@ -340,7 +371,8 @@ class TestSave:
         assert loaded[0].title == "Updated Title"
 
     async def test_save_sanitizes_filename(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         record = _minimal_record(id="DEC/special\\chars")
         path = await store.save(record)
@@ -356,13 +388,18 @@ class TestSave:
 
 class TestQueryByFiles:
     async def test_empty_store_returns_empty(
-        self, store: DecisionStore, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        tmp_path: Path,
     ) -> None:
         result = await store.query_by_files({tmp_path / "any.py"})
         assert result == []
 
     async def test_returns_relevant_decisions_sorted(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         target = tmp_path / "src" / "handler.py"
         target.parent.mkdir(parents=True)
@@ -395,7 +432,9 @@ class TestQueryByFiles:
         assert results[0][1] == 1.0
 
     async def test_filters_superseded_decisions(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -418,7 +457,9 @@ class TestQueryByFiles:
         assert "DEC-002" in ids
 
     async def test_filters_expired_decisions(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -428,7 +469,9 @@ class TestQueryByFiles:
         assert len(results) == 0
 
     async def test_min_relevance_threshold(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         # Decision with no anchors gets 0.1 baseline
         _write_yaml(
@@ -437,13 +480,15 @@ class TestQueryByFiles:
         )
         # With min_relevance=0.5, baseline 0.1 should be excluded
         results = await store.query_by_files(
-            {Path("/any.py")}, min_relevance=0.5,
+            {Path("/any.py")},
+            min_relevance=0.5,
         )
         assert len(results) == 0
 
         # With min_relevance=0.1, it should be included
         results = await store.query_by_files(
-            {Path("/any.py")}, min_relevance=0.1,
+            {Path("/any.py")},
+            min_relevance=0.1,
         )
         assert len(results) == 1
 
@@ -455,13 +500,16 @@ class TestQueryByFiles:
 
 class TestFindConflicts:
     async def test_no_conflicts_in_empty_store(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         conflicts = await store.find_conflicts()
         assert conflicts == []
 
     async def test_supersedes_chain_conflict(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         """Both the superseding and superseded decision are active."""
         _write_yaml(
@@ -483,7 +531,10 @@ class TestFindConflicts:
         assert {d_a.id, d_b.id} == {"DEC-001", "DEC-002"}
 
     async def test_overlapping_anchors_whole_file(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         target = tmp_path / "service.py"
         target.touch()
@@ -508,7 +559,10 @@ class TestFindConflicts:
         assert "service.py" in conflicts[0][2]
 
     async def test_overlapping_line_ranges(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         target = tmp_path / "service.py"
         target.touch()
@@ -533,7 +587,10 @@ class TestFindConflicts:
         assert "Overlapping" in conflicts[0][2]
 
     async def test_non_overlapping_line_ranges_no_conflict(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         target = tmp_path / "service.py"
         target.touch()
@@ -557,7 +614,10 @@ class TestFindConflicts:
         assert len(conflicts) == 0
 
     async def test_different_files_no_conflict(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         file_a = tmp_path / "a.py"
         file_b = tmp_path / "b.py"
@@ -583,7 +643,10 @@ class TestFindConflicts:
         assert len(conflicts) == 0
 
     async def test_non_active_decisions_excluded_from_conflicts(
-        self, store: DecisionStore, decisions_dir: Path, tmp_path: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
+        tmp_path: Path,
     ) -> None:
         target = tmp_path / "service.py"
         target.touch()
@@ -616,13 +679,16 @@ class TestFindConflicts:
 
 class TestNextId:
     async def test_empty_store_returns_001(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         next_id = await store.next_id()
         assert next_id == "DEC-001"
 
     async def test_sequential_after_existing(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         _write_yaml(
             decisions_dir / "DEC-001.yaml",
@@ -636,7 +702,9 @@ class TestNextId:
         assert next_id == "DEC-003"
 
     async def test_gap_handling_uses_max(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         """IDs 001 and 005 exist (gap at 002-004); next should be 006."""
         _write_yaml(
@@ -651,7 +719,9 @@ class TestNextId:
         assert next_id == "DEC-006"
 
     async def test_non_dec_ids_ignored(
-        self, store: DecisionStore, decisions_dir: Path,
+        self,
+        store: DecisionStore,
+        decisions_dir: Path,
     ) -> None:
         """Decisions with non-standard IDs should not affect numbering."""
         _write_yaml(
@@ -666,7 +736,8 @@ class TestNextId:
         assert next_id == "DEC-004"
 
     async def test_zero_padded_format(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         next_id = await store.next_id()
         assert next_id == "DEC-001"
@@ -699,7 +770,8 @@ class TestParseAnchorShorthand:
         assert anchor.line_range is None
 
     def test_file_with_non_numeric_after_colon(
-        self, store: DecisionStore,
+        self,
+        store: DecisionStore,
     ) -> None:
         """If the part after ':' is not numeric, treat entire string as file path."""
         anchor = store._parse_anchor_shorthand("src/handler.py:main")

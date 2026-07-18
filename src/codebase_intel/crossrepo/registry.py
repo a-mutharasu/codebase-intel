@@ -24,21 +24,21 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from codebase_intel.crossrepo.models import (
     APIEndpoint,
-    ContractStatus,
     CrossRepoImpact,
     HttpMethod,
     ServiceDependency,
     ServiceInfo,
-    ServiceStatus,
 )
-from codebase_intel.crossrepo.scanner import OutboundCall, ServiceScanResult, ServiceScanner
+from codebase_intel.crossrepo.scanner import OutboundCall, ServiceScanner, ServiceScanResult
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -134,26 +134,27 @@ class CrossRepoRegistry:
         if endpoint_path:
             # Specific endpoint changed
             affected = [
-                d for d in self.dependencies
+                d
+                for d in self.dependencies
                 if d.provider_service == service_id
                 and self._paths_match(d.endpoint_path, endpoint_path)
             ]
 
             if affected:
                 risk = self._assess_risk(affected)
-                impacts.append(CrossRepoImpact(
-                    changed_service=service_id,
-                    changed_endpoint=endpoint_path,
-                    changed_file=changed_file,
-                    affected_services=affected,
-                    risk_level=risk,
-                    recommendation=self._generate_recommendation(affected, risk),
-                ))
+                impacts.append(
+                    CrossRepoImpact(
+                        changed_service=service_id,
+                        changed_endpoint=endpoint_path,
+                        changed_file=changed_file,
+                        affected_services=affected,
+                        risk_level=risk,
+                        recommendation=self._generate_recommendation(affected, risk),
+                    )
+                )
         else:
             # Any endpoint in this service — deduplicate by endpoint path
-            service_endpoints = [
-                e for e in self.endpoints if e.service_id == service_id
-            ]
+            service_endpoints = [e for e in self.endpoints if e.service_id == service_id]
             seen_paths: set[str] = set()
             for endpoint in service_endpoints:
                 normalized = endpoint.path.strip("/").lower()
@@ -162,20 +163,23 @@ class CrossRepoRegistry:
                 seen_paths.add(normalized)
 
                 affected = [
-                    d for d in self.dependencies
+                    d
+                    for d in self.dependencies
                     if d.provider_service == service_id
                     and self._paths_match(d.endpoint_path, endpoint.path)
                 ]
                 if affected:
                     risk = self._assess_risk(affected)
-                    impacts.append(CrossRepoImpact(
-                        changed_service=service_id,
-                        changed_endpoint=endpoint.path,
-                        changed_file=endpoint.file_path,
-                        affected_services=affected,
-                        risk_level=risk,
-                        recommendation=self._generate_recommendation(affected, risk),
-                    ))
+                    impacts.append(
+                        CrossRepoImpact(
+                            changed_service=service_id,
+                            changed_endpoint=endpoint.path,
+                            changed_file=endpoint.file_path,
+                            affected_services=affected,
+                            risk_level=risk,
+                            recommendation=self._generate_recommendation(affected, risk),
+                        )
+                    )
 
         return impacts
 
@@ -188,14 +192,12 @@ class CrossRepoRegistry:
                 "name": info.name,
                 "endpoints_exposed": len(scan.endpoints) if scan else 0,
                 "outbound_calls": len(scan.outbound_calls) if scan else 0,
-                "depends_on": list({
-                    d.provider_service for d in self.dependencies
-                    if d.consumer_service == sid
-                }),
-                "depended_on_by": list({
-                    d.consumer_service for d in self.dependencies
-                    if d.provider_service == sid
-                }),
+                "depends_on": list(
+                    {d.provider_service for d in self.dependencies if d.consumer_service == sid}
+                ),
+                "depended_on_by": list(
+                    {d.consumer_service for d in self.dependencies if d.provider_service == sid}
+                ),
             }
         return services
 
@@ -247,9 +249,7 @@ class CrossRepoRegistry:
     # Private
     # -------------------------------------------------------------------
 
-    def _resolve_call(
-        self, call: OutboundCall, consumer_service: str
-    ) -> ServiceDependency | None:
+    def _resolve_call(self, call: OutboundCall, consumer_service: str) -> ServiceDependency | None:
         """Try to match an outbound call to a known endpoint."""
         url = call.url
 
@@ -294,9 +294,9 @@ class CrossRepoRegistry:
         'f"{base_url}/api/users"', '{SERVICE_URL}/users'
         """
         # Remove protocol and host
-        path = re.sub(r'https?://[^/]+', '', url)
+        path = re.sub(r"https?://[^/]+", "", url)
         # Remove f-string interpolation markers
-        path = re.sub(r'\{[^}]*\}/', '', path, count=1)  # Remove first {var}/
+        path = re.sub(r"\{[^}]*\}/", "", path, count=1)  # Remove first {var}/
         # Keep path parameters
         path = path.strip("/ ")
         if path and not path.startswith("/"):
@@ -322,16 +322,23 @@ class CrossRepoRegistry:
             return True
 
         # Convert endpoint path params to regex
-        pattern = re.sub(r'\{[^}]+\}', r'[^/]+', endpoint_path)
-        pattern = re.sub(r'<[^>]+>', r'[^/]+', pattern)
+        pattern = re.sub(r"\{[^}]+\}", r"[^/]+", endpoint_path)
+        pattern = re.sub(r"<[^>]+>", r"[^/]+", pattern)
 
         return bool(re.fullmatch(pattern, call_path))
 
     def _is_critical_path(self, path: str) -> bool:
         """Determine if an endpoint is on a critical path."""
         critical_keywords = [
-            "auth", "login", "token", "payment", "billing",
-            "checkout", "order", "session", "verify",
+            "auth",
+            "login",
+            "token",
+            "payment",
+            "billing",
+            "checkout",
+            "order",
+            "session",
+            "verify",
         ]
         path_lower = path.lower()
         return any(kw in path_lower for kw in critical_keywords)
@@ -346,9 +353,7 @@ class CrossRepoRegistry:
             return "medium"
         return "low"
 
-    def _generate_recommendation(
-        self, affected: list[ServiceDependency], risk: str
-    ) -> str:
+    def _generate_recommendation(self, affected: list[ServiceDependency], risk: str) -> str:
         """Generate actionable recommendation based on impact."""
         count = len(affected)
         services = list({d.consumer_service for d in affected})

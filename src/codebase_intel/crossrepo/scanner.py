@@ -26,20 +26,16 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from codebase_intel.crossrepo.models import (
     APIEndpoint,
-    ContractStatus,
     EventContract,
     HttpMethod,
-    ProtocolType,
-    ServiceDependency,
-    ServiceInfo,
-    ServiceStatus,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -49,75 +45,77 @@ logger = logging.getLogger(__name__)
 ROUTE_PATTERNS = [
     # --- Python ---
     # FastAPI / Starlette
-    re.compile(r'@(?:app|router|api_router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["\']([^"\']+)["\']'),
+    re.compile(
+        r'@(?:app|router|api_router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["\']([^"\']+)["\']'
+    ),
     # Flask
-    re.compile(r'@(?:app|bp|blueprint)\.route\s*\(\s*["\']([^"\']+)["\'](?:.*methods\s*=\s*\[([^\]]+)\])?'),
+    re.compile(
+        r'@(?:app|bp|blueprint)\.route\s*\(\s*["\']([^"\']+)["\'](?:.*methods\s*=\s*\[([^\]]+)\])?'
+    ),
     # Django REST (only match url patterns with api/ prefix to avoid false positives)
-    re.compile(r'@(?:api_view|action)\s*\(\s*\[([^\]]+)\]\s*\)'),
+    re.compile(r"@(?:api_view|action)\s*\(\s*\[([^\]]+)\]\s*\)"),
     re.compile(r'path\s*\(\s*["\'](?:api/[^"\']+)["\']'),
     # Tornado
     re.compile(r'\(\s*r?["\'](/api/[^"\']+)["\'].*(?:Handler|View)'),
-
     # --- JavaScript / TypeScript ---
     # Express / Koa / Hapi
     re.compile(r'(?:app|router|server)\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
     # NestJS decorators
     re.compile(r'@(Get|Post|Put|Patch|Delete)\s*\(\s*["\']([^"\']+)["\']'),
     # Next.js API routes (file-based)
-    re.compile(r'export\s+(?:default\s+)?(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b'),
-
+    re.compile(r"export\s+(?:default\s+)?(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b"),
     # --- Go ---
     # net/http
-    re.compile(r'(?:http|mux|r|router)\.(?:HandleFunc|Handle|Get|Post|Put|Patch|Delete)\s*\(\s*["\']([^"\']+)["\']'),
+    re.compile(
+        r'(?:http|mux|r|router)\.(?:HandleFunc|Handle|Get|Post|Put|Patch|Delete)\s*\(\s*["\']([^"\']+)["\']'
+    ),
     # Gin
-    re.compile(r'(?:r|router|group|v1|v2|api)\.(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["\']([^"\']+)["\']'),
+    re.compile(
+        r'(?:r|router|group|v1|v2|api)\.(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["\']([^"\']+)["\']'
+    ),
     # Echo
     re.compile(r'(?:e|echo|g|group)\.(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["\']([^"\']+)["\']'),
     # Fiber
     re.compile(r'(?:app|group|api)\.(Get|Post|Put|Patch|Delete)\s*\(\s*["\']([^"\']+)["\']'),
-
     # --- Java ---
     # Spring Boot
-    re.compile(r'@(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping)\s*\(\s*(?:value\s*=\s*)?["\']([^"\']+)["\']'),
-    re.compile(r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?["\']([^"\']+)["\'](?:.*method\s*=\s*RequestMethod\.(\w+))?'),
+    re.compile(
+        r'@(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping)\s*\(\s*(?:value\s*=\s*)?["\']([^"\']+)["\']'
+    ),
+    re.compile(
+        r'@RequestMapping\s*\(\s*(?:value\s*=\s*)?["\']([^"\']+)["\'](?:.*method\s*=\s*RequestMethod\.(\w+))?'
+    ),
     # JAX-RS (Quarkus, Jersey)
     re.compile(r'@(GET|POST|PUT|PATCH|DELETE)\s*\n\s*@Path\s*\(\s*["\']([^"\']+)["\']'),
     re.compile(r'@Path\s*\(\s*["\']([^"\']+)["\']'),
-
     # --- Rust ---
     # Actix-web
     re.compile(r'#\[(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
-    re.compile(r'web::(get|post|put|patch|delete)\s*\(\)\s*\.to\s*\('),
+    re.compile(r"web::(get|post|put|patch|delete)\s*\(\)\s*\.to\s*\("),
     # Axum
     re.compile(r'\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
     # Rocket
     re.compile(r'#\[(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
-
     # --- Ruby ---
     # Rails routes (require leading slash to avoid false positives)
     re.compile(r'(?:get|post|put|patch|delete)\s+["\'](/[^"\']+)["\']'),
-    re.compile(r'resources?\s+:(\w+)'),
-
+    re.compile(r"resources?\s+:(\w+)"),
     # --- PHP ---
     # Laravel
     re.compile(r'Route::(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
     # Symfony
     re.compile(r'#\[Route\s*\(\s*["\']([^"\']+)["\'](?:.*methods:\s*\[([^\]]+)\])?'),
-
     # --- C# ---
     # ASP.NET
     re.compile(r'\[(Http(Get|Post|Put|Patch|Delete))\s*\(\s*["\']([^"\']+)["\']'),
     re.compile(r'\[Route\s*\(\s*["\']([^"\']+)["\']'),
-
     # --- Kotlin ---
     # Ktor
     re.compile(r'(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
     # Spring Boot (same as Java)
-
     # --- Swift ---
     # Vapor
     re.compile(r'(?:app|grouped)\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']+)["\']'),
-
     # --- Elixir ---
     # Phoenix
     re.compile(r'(get|post|put|patch|delete)\s+["\']([^"\']+)["\']'),
@@ -128,40 +126,42 @@ ROUTE_PATTERNS = [
 # ---------------------------------------------------------------------------
 HTTP_CALL_PATTERNS = [
     # --- Python ---
-    re.compile(r'(?:httpx|client|async_client)\.(get|post|put|patch|delete)\s*\(\s*(?:f?["\']([^"\']*)["\']|(\w+))'),
+    re.compile(
+        r'(?:httpx|client|async_client)\.(get|post|put|patch|delete)\s*\(\s*(?:f?["\']([^"\']*)["\']|(\w+))'
+    ),
     re.compile(r'requests\.(get|post|put|patch|delete)\s*\(\s*(?:f?["\']([^"\']*)["\']|(\w+))'),
     re.compile(r'session\.(get|post|put|patch|delete)\s*\(\s*(?:f?["\']([^"\']*)["\']|(\w+))'),
-
     # --- JavaScript / TypeScript ---
     re.compile(r'fetch\s*\(\s*(?:`([^`]*)`|["\']([^"\']*)["\'])'),
     re.compile(r'axios\.(get|post|put|patch|delete)\s*\(\s*(?:`([^`]*)`|["\']([^"\']*)["\'])'),
-    re.compile(r'(?:\$http|http)\.(get|post|put|patch|delete)\s*\(\s*(?:`([^`]*)`|["\']([^"\']*)["\'])'),
-
+    re.compile(
+        r'(?:\$http|http)\.(get|post|put|patch|delete)\s*\(\s*(?:`([^`]*)`|["\']([^"\']*)["\'])'
+    ),
     # --- Go ---
     re.compile(r'http\.(Get|Post|Put|NewRequest)\s*\(\s*["\']([^"\']*)["\']'),
     re.compile(r'(?:client|c|resty)\.(Get|Post|Put|Patch|Delete|R)\s*\(\s*["\']([^"\']*)["\']'),
-
     # --- Java ---
     re.compile(r'(?:HttpRequest|RestTemplate|WebClient|Feign)\.\w+\s*\(\s*["\']([^"\']*)["\']'),
     re.compile(r'\.uri\s*\(\s*["\']([^"\']*)["\']'),
-
     # --- Rust ---
     re.compile(r'(?:reqwest|client)\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']*)["\']'),
     re.compile(r'Client::new\(\).*\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']*)["\']'),
-
     # --- Ruby ---
-    re.compile(r'(?:Net::HTTP|HTTParty|Faraday|RestClient)\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']*)["\']'),
-
+    re.compile(
+        r'(?:Net::HTTP|HTTParty|Faraday|RestClient)\.(get|post|put|patch|delete)\s*\(\s*["\']([^"\']*)["\']'
+    ),
     # --- PHP ---
     re.compile(r'(?:Http|Guzzle|client)->(get|post|put|patch|delete)\s*\(\s*["\']([^"\']*)["\']'),
     re.compile(r'file_get_contents\s*\(\s*["\']([^"\']*)["\']'),
-
     # --- C# ---
-    re.compile(r'(?:HttpClient|client)\.(Get|Post|Put|Patch|Delete)Async\s*\(\s*["\']([^"\']*)["\']'),
-    re.compile(r'(?:HttpClient|client)\.Send\w*\s*\('),
-
+    re.compile(
+        r'(?:HttpClient|client)\.(Get|Post|Put|Patch|Delete)Async\s*\(\s*["\']([^"\']*)["\']'
+    ),
+    re.compile(r"(?:HttpClient|client)\.Send\w*\s*\("),
     # --- Generic URL building (all languages) ---
-    re.compile(r'(?:url|endpoint|base_url|service_url|apiUrl|baseURL)\s*(?:\+|=|:)\s*(?:f?["\']([^"\']*(?:api|/v\d)[^"\']*)["\'])'),
+    re.compile(
+        r'(?:url|endpoint|base_url|service_url|apiUrl|baseURL)\s*(?:\+|=|:)\s*(?:f?["\']([^"\']*(?:api|/v\d)[^"\']*)["\'])'
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -169,17 +169,17 @@ HTTP_CALL_PATTERNS = [
 # ---------------------------------------------------------------------------
 SERVICE_URL_PATTERNS = [
     # Python
-    re.compile(r'(\w+(?:SERVICE|API|BACKEND)_(?:URL|HOST|BASE_URL|ENDPOINT))\b'),
+    re.compile(r"(\w+(?:SERVICE|API|BACKEND)_(?:URL|HOST|BASE_URL|ENDPOINT))\b"),
     re.compile(r'os\.(?:environ|getenv)\s*\(\s*["\'](\w*(?:URL|HOST|BASE)\w*)["\']'),
-    re.compile(r'settings\.(\w*(?:url|host|base_url|endpoint)\w*)', re.IGNORECASE),
+    re.compile(r"settings\.(\w*(?:url|host|base_url|endpoint)\w*)", re.IGNORECASE),
     # Go
     re.compile(r'os\.Getenv\s*\(\s*["\'](\w*(?:URL|HOST|BASE|SERVICE)\w*)["\']'),
     # Java / Kotlin
     re.compile(r'@Value\s*\(\s*["\']?\$\{(\w*(?:url|host|base|service)\w*)', re.IGNORECASE),
     re.compile(r'System\.getenv\s*\(\s*["\'](\w*(?:URL|HOST|BASE|SERVICE)\w*)["\']'),
     # JS / TS
-    re.compile(r'process\.env\.(\w*(?:URL|HOST|BASE|SERVICE|API)\w*)'),
-    re.compile(r'(?:NEXT_PUBLIC|VITE|REACT_APP)_(\w*(?:URL|API)\w*)'),
+    re.compile(r"process\.env\.(\w*(?:URL|HOST|BASE|SERVICE|API)\w*)"),
+    re.compile(r"(?:NEXT_PUBLIC|VITE|REACT_APP)_(\w*(?:URL|API)\w*)"),
     # Ruby
     re.compile(r'ENV\s*\[\s*["\'](\w*(?:URL|HOST|BASE|SERVICE)\w*)["\']'),
     # PHP
@@ -189,7 +189,7 @@ SERVICE_URL_PATTERNS = [
     # Rust
     re.compile(r'(?:env::var|std::env::var)\s*\(\s*["\'](\w*(?:URL|HOST|BASE|SERVICE)\w*)["\']'),
     # Generic .env patterns
-    re.compile(r'^(\w+(?:_URL|_HOST|_BASE_URL|_ENDPOINT|_SERVICE))\s*=', re.MULTILINE),
+    re.compile(r"^(\w+(?:_URL|_HOST|_BASE_URL|_ENDPOINT|_SERVICE))\s*=", re.MULTILINE),
 ]
 
 # ---------------------------------------------------------------------------
@@ -221,8 +221,16 @@ class ServiceScanner:
 
     def __init__(self, skip_dirs: set[str] | None = None) -> None:
         self._skip_dirs = skip_dirs or {
-            "node_modules", ".git", "__pycache__", ".venv", "venv",
-            "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            ".tox",
+            ".mypy_cache",
+            ".pytest_cache",
         }
 
     def scan_service(
@@ -243,9 +251,7 @@ class ServiceScanner:
         )
 
         source_files = self._collect_source_files(repo_path)
-        logger.info(
-            "Scanning %s: %d source files", service_id, len(source_files)
-        )
+        logger.info("Scanning %s: %d source files", service_id, len(source_files))
 
         for file_path, content in source_files.items():
             rel_path = str(file_path.relative_to(repo_path))
@@ -276,9 +282,7 @@ class ServiceScanner:
 
         return result
 
-    def _find_endpoints(
-        self, content: str, service_id: str, file_path: str
-    ) -> list[APIEndpoint]:
+    def _find_endpoints(self, content: str, service_id: str, file_path: str) -> list[APIEndpoint]:
         """Find route decorators that expose API endpoints."""
         endpoints: list[APIEndpoint] = []
         lines = content.split("\n")
@@ -307,19 +311,21 @@ class ServiceScanner:
                 # Find the function name (next def line)
                 func_name = ""
                 for i in range(line_no, min(line_no + 5, len(lines))):
-                    func_match = re.search(r'(?:async\s+)?def\s+(\w+)', lines[i - 1])
+                    func_match = re.search(r"(?:async\s+)?def\s+(\w+)", lines[i - 1])
                     if func_match:
                         func_name = func_match.group(1)
                         break
 
-                endpoints.append(APIEndpoint(
-                    path=path,
-                    method=method,
-                    service_id=service_id,
-                    file_path=file_path,
-                    line_number=line_no,
-                    function_name=func_name,
-                ))
+                endpoints.append(
+                    APIEndpoint(
+                        path=path,
+                        method=method,
+                        service_id=service_id,
+                        file_path=file_path,
+                        line_number=line_no,
+                        function_name=func_name,
+                    )
+                )
 
         return endpoints
 
@@ -354,15 +360,17 @@ class ServiceScanner:
                 if not url and not var_name:
                     continue
 
-                calls.append(OutboundCall(
-                    service_id=service_id,
-                    method=method_str or "ANY",
-                    url=url,
-                    url_variable=var_name,
-                    file_path=file_path,
-                    line_number=line_no,
-                    raw_line=line.strip()[:200],
-                ))
+                calls.append(
+                    OutboundCall(
+                        service_id=service_id,
+                        method=method_str or "ANY",
+                        url=url,
+                        url_variable=var_name,
+                        file_path=file_path,
+                        line_number=line_no,
+                        raw_line=line.strip()[:200],
+                    )
+                )
 
         return calls
 
@@ -374,21 +382,25 @@ class ServiceScanner:
                 vars_found.add(match.group(1))
         return vars_found
 
-    def _find_events(
-        self, content: str, service_id: str, file_path: str
-    ) -> list[EventContract]:
+    def _find_events(self, content: str, service_id: str, file_path: str) -> list[EventContract]:
         """Find event publishing/consuming patterns."""
         events: list[EventContract] = []
         for pattern in EVENT_PATTERNS:
             for match in pattern.finditer(content):
                 event_name = match.group(1)
-                direction = "publishes" if "publish" in pattern.pattern or "send" in pattern.pattern else "consumes"
-                events.append(EventContract(
-                    event_name=event_name,
-                    service_id=service_id,
-                    direction=direction,
-                    file_path=file_path,
-                ))
+                direction = (
+                    "publishes"
+                    if "publish" in pattern.pattern or "send" in pattern.pattern
+                    else "consumes"
+                )
+                events.append(
+                    EventContract(
+                        event_name=event_name,
+                        service_id=service_id,
+                        direction=direction,
+                        file_path=file_path,
+                    )
+                )
         return events
 
     def _collect_source_files(self, repo_path: Path) -> dict[Path, str]:
@@ -402,15 +414,22 @@ class ServiceScanner:
                         if entry.name not in self._skip_dirs and not entry.name.startswith("."):
                             _walk(entry)
                     elif entry.is_file() and entry.suffix in (
-                        ".py", ".ts", ".js", ".tsx", ".jsx",  # Python, JS/TS
+                        ".py",
+                        ".ts",
+                        ".js",
+                        ".tsx",
+                        ".jsx",  # Python, JS/TS
                         ".go",  # Go
-                        ".java", ".kt", ".kts",  # Java, Kotlin
+                        ".java",
+                        ".kt",
+                        ".kts",  # Java, Kotlin
                         ".rs",  # Rust
                         ".rb",  # Ruby
                         ".php",  # PHP
                         ".cs",  # C#
                         ".swift",  # Swift
-                        ".ex", ".exs",  # Elixir
+                        ".ex",
+                        ".exs",  # Elixir
                         ".scala",  # Scala
                         ".env",  # Environment files
                     ):

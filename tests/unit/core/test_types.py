@@ -57,7 +57,8 @@ class TestNodeKind:
         assert {kind.value for kind in NodeKind} == expected
 
     def test_string_coercion(self) -> None:
-        assert str(NodeKind.MODULE) == "NodeKind.MODULE"
+        # StrEnum: str() IS the value — what SQLite/YAML/f-strings all rely on
+        assert str(NodeKind.MODULE) == "module"
         assert NodeKind.MODULE.value == "module"
 
     def test_is_str_subclass(self) -> None:
@@ -86,11 +87,26 @@ class TestEdgeKind:
 class TestLanguage:
     def test_all_values_present(self) -> None:
         expected = {
-            "python", "javascript", "typescript", "tsx",
-            "go", "rust", "java", "ruby",
-            "c", "cpp", "c_sharp", "php", "swift",
-            "kotlin", "scala", "lua", "dart",
-            "elixir", "haskell", "unknown",
+            "python",
+            "javascript",
+            "typescript",
+            "tsx",
+            "go",
+            "rust",
+            "java",
+            "ruby",
+            "c",
+            "cpp",
+            "c_sharp",
+            "php",
+            "swift",
+            "kotlin",
+            "scala",
+            "lua",
+            "dart",
+            "elixir",
+            "haskell",
+            "unknown",
         }
         assert {lang.value for lang in Language} == expected
 

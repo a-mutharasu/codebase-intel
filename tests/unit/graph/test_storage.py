@@ -118,9 +118,7 @@ class TestGraphStorageOpen:
             assert row is not None
             assert row[0] == SCHEMA_VERSION
 
-    async def test_wal_mode_enabled(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_wal_mode_enabled(self, graph_config: GraphConfig, project_root: Path) -> None:
         async with GraphStorage.open(graph_config, project_root) as storage:
             cursor = await storage._db.execute("PRAGMA journal_mode")
             row = await cursor.fetchone()
@@ -265,12 +263,9 @@ class TestNodeOperations:
 
 
 class TestBatchOperations:
-    async def test_upsert_nodes_batch(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_upsert_nodes_batch(self, graph_config: GraphConfig, project_root: Path) -> None:
         nodes = [
-            _make_node(project_root, name=f"func_{i}", file_name=f"mod_{i}.py")
-            for i in range(10)
+            _make_node(project_root, name=f"func_{i}", file_name=f"mod_{i}.py") for i in range(10)
         ]
         async with GraphStorage.open(graph_config, project_root) as storage:
             await storage.upsert_nodes_batch(nodes)
@@ -287,12 +282,9 @@ class TestBatchOperations:
         async with GraphStorage.open(graph_config, project_root) as storage:
             await storage.upsert_nodes_batch([])
 
-    async def test_upsert_edges_batch(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_upsert_edges_batch(self, graph_config: GraphConfig, project_root: Path) -> None:
         nodes = [
-            _make_node(project_root, name=f"svc_{i}", file_name=f"svc_{i}.py")
-            for i in range(3)
+            _make_node(project_root, name=f"svc_{i}", file_name=f"svc_{i}.py") for i in range(3)
         ]
         edges = [
             _make_edge(nodes[0].node_id, nodes[1].node_id, EdgeKind.IMPORTS),
@@ -312,9 +304,7 @@ class TestBatchOperations:
 
 
 class TestEdgeTraversal:
-    async def _setup_chain(
-        self, storage: GraphStorage, project_root: Path
-    ) -> list[GraphNode]:
+    async def _setup_chain(self, storage: GraphStorage, project_root: Path) -> list[GraphNode]:
         """Create A -> B -> C chain."""
         a = _make_node(project_root, name="a", file_name="a.py")
         b = _make_node(project_root, name="b", file_name="b.py")
@@ -402,9 +392,7 @@ class TestEdgeTraversal:
             await storage.upsert_node(a)
             await storage.upsert_node(b)
             await storage._db.commit()
-            await storage.upsert_edge(
-                _make_edge(a.node_id, b.node_id, is_type_only=True)
-            )
+            await storage.upsert_edge(_make_edge(a.node_id, b.node_id, is_type_only=True))
             await storage._db.commit()
 
             # Default: type-only excluded
@@ -415,9 +403,7 @@ class TestEdgeTraversal:
             deps = await storage.get_dependents(b.node_id, include_type_only=True)
             assert len(deps) == 1
 
-    async def test_edge_kind_filter(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_edge_kind_filter(self, graph_config: GraphConfig, project_root: Path) -> None:
         async with GraphStorage.open(graph_config, project_root) as storage:
             a = _make_node(project_root, name="x", file_name="x.py")
             b = _make_node(project_root, name="y", file_name="y.py")
@@ -427,14 +413,10 @@ class TestEdgeTraversal:
             await storage.upsert_edge(_make_edge(a.node_id, b.node_id, EdgeKind.CALLS))
             await storage._db.commit()
 
-            deps = await storage.get_dependents(
-                b.node_id, edge_kinds=[EdgeKind.IMPORTS]
-            )
+            deps = await storage.get_dependents(b.node_id, edge_kinds=[EdgeKind.IMPORTS])
             assert len(deps) == 0
 
-            deps = await storage.get_dependents(
-                b.node_id, edge_kinds=[EdgeKind.CALLS]
-            )
+            deps = await storage.get_dependents(b.node_id, edge_kinds=[EdgeKind.CALLS])
             assert len(deps) == 1
 
 
@@ -455,9 +437,7 @@ class TestRemoveFileNodes:
             await storage.upsert_node(node_a)
             await storage.upsert_node(node_b)
             await storage._db.commit()
-            await storage.upsert_edge(
-                _make_edge(node_b.node_id, node_a.node_id, EdgeKind.IMPORTS)
-            )
+            await storage.upsert_edge(_make_edge(node_b.node_id, node_a.node_id, EdgeKind.IMPORTS))
             await storage._db.commit()
 
             removed = await storage.remove_file_nodes(file_path)
@@ -536,9 +516,7 @@ class TestImpactAnalysis:
             )
             await storage._db.commit()
 
-            result = await storage.impact_analysis(
-                [project_root / "c_mod.py"], max_depth=3
-            )
+            result = await storage.impact_analysis([project_root / "c_mod.py"], max_depth=3)
 
         affected = result[str(project_root / "c_mod.py")]
         affected_ids = {n.node_id for n in affected}
@@ -552,13 +530,8 @@ class TestImpactAnalysis:
 
 
 class TestStats:
-    async def test_get_stats_counts(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
-        nodes = [
-            _make_node(project_root, name=f"fn_{i}", file_name=f"f_{i}.py")
-            for i in range(5)
-        ]
+    async def test_get_stats_counts(self, graph_config: GraphConfig, project_root: Path) -> None:
+        nodes = [_make_node(project_root, name=f"fn_{i}", file_name=f"f_{i}.py") for i in range(5)]
         edge = _make_edge(nodes[0].node_id, nodes[1].node_id)
 
         async with GraphStorage.open(graph_config, project_root) as storage:
@@ -572,9 +545,7 @@ class TestStats:
         assert stats["edges_count"] == 1
         assert stats["file_fingerprints_count"] == 0
 
-    async def test_get_stats_empty_db(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_get_stats_empty_db(self, graph_config: GraphConfig, project_root: Path) -> None:
         async with GraphStorage.open(graph_config, project_root) as storage:
             stats = await storage.get_stats()
         assert stats["nodes_count"] == 0
@@ -684,14 +655,10 @@ class TestPathNormalisation:
         assert "/" in stored_path  # POSIX separator
         assert not Path(stored_path).is_absolute()
 
-    async def test_get_nodes_by_file(
-        self, graph_config: GraphConfig, project_root: Path
-    ) -> None:
+    async def test_get_nodes_by_file(self, graph_config: GraphConfig, project_root: Path) -> None:
         fp = project_root / "views.py"
         n1 = _make_node(project_root, name="view_a", file_name="views.py")
-        n2 = _make_node(
-            project_root, name="view_b", kind=NodeKind.CLASS, file_name="views.py"
-        )
+        n2 = _make_node(project_root, name="view_b", kind=NodeKind.CLASS, file_name="views.py")
         async with GraphStorage.open(graph_config, project_root) as storage:
             await storage.upsert_nodes_batch([n1, n2])
             nodes = await storage.get_nodes_by_file(fp)

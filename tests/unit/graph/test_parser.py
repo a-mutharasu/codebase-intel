@@ -187,33 +187,25 @@ class TestQualifiedModuleName:
         fp.touch()
         assert parser._qualified_module_name(fp) == "pkg.models"
 
-    def test_init_file_represents_package(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_init_file_represents_package(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "pkg" / "__init__.py"
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.touch()
         assert parser._qualified_module_name(fp) == "pkg"
 
-    def test_src_prefix_stripped(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_src_prefix_stripped(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "src" / "mylib" / "core.py"
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.touch()
         assert parser._qualified_module_name(fp) == "mylib.core"
 
-    def test_lib_prefix_stripped(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_lib_prefix_stripped(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "lib" / "utils.py"
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.touch()
         assert parser._qualified_module_name(fp) == "utils"
 
-    def test_index_file_represents_directory(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_index_file_represents_directory(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "components" / "index.ts"
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.touch()
@@ -233,9 +225,7 @@ class TestQualifiedModuleName:
 
 
 class TestReadFileSafe:
-    def test_normal_utf8_file(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_normal_utf8_file(self, parser: FileParser, project_root: Path) -> None:
         fp = _write(project_root / "hello.py", "print('hello')")
         result = parser._read_file_safe(fp)
         assert result is not None
@@ -243,24 +233,18 @@ class TestReadFileSafe:
         assert text == "print('hello')"
         assert raw == b"print('hello')"
 
-    def test_binary_file_with_null_bytes(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_binary_file_with_null_bytes(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "binary.py"
         fp.write_bytes(b"\x00\x01\x02compiled bytecode")
         assert parser._read_file_safe(fp) is None
 
-    def test_oversized_file_skipped(
-        self, project_root: Path
-    ) -> None:
+    def test_oversized_file_skipped(self, project_root: Path) -> None:
         small_config = ParserConfig(max_file_size_bytes=50)
         p = FileParser(small_config, project_root)
         fp = _write(project_root / "big.py", "x" * 100)
         assert p._read_file_safe(fp) is None
 
-    def test_permission_error(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_permission_error(self, parser: FileParser, project_root: Path) -> None:
         fp = _write(project_root / "locked.py", "secret")
         fp.chmod(0o000)
         try:
@@ -271,15 +255,11 @@ class TestReadFileSafe:
         finally:
             fp.chmod(0o644)
 
-    def test_nonexistent_file(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_nonexistent_file(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "ghost.py"
         assert parser._read_file_safe(fp) is None
 
-    def test_latin1_fallback(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_latin1_fallback(self, parser: FileParser, project_root: Path) -> None:
         fp = project_root / "legacy.py"
         # Latin-1 byte that is invalid UTF-8 but valid Latin-1
         fp.write_bytes(b"# encoding: latin-1\nx = '\xe9'\n")
@@ -349,9 +329,7 @@ class TestExtractImportModule:
         result = parser._extract_import_module("from typing import List", fp)
         assert result == "typing"
 
-    def test_relative_import_single_dot(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_relative_import_single_dot(self, parser: FileParser, project_root: Path) -> None:
         pkg_dir = project_root / "mypkg"
         pkg_dir.mkdir()
         fp = pkg_dir / "child.py"
@@ -360,9 +338,7 @@ class TestExtractImportModule:
         assert result is not None
         assert "sibling" in result
 
-    def test_relative_import_double_dot(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_relative_import_double_dot(self, parser: FileParser, project_root: Path) -> None:
         nested = project_root / "pkg" / "sub"
         nested.mkdir(parents=True)
         fp = nested / "mod.py"
@@ -398,26 +374,20 @@ class TestParseFile:
         assert module_node.kind == NodeKind.MODULE
         assert module_node.name == "simple"
 
-    async def test_parse_skips_ignored_patterns(
-        self, project_root: Path
-    ) -> None:
+    async def test_parse_skips_ignored_patterns(self, project_root: Path) -> None:
         config = ParserConfig(ignored_patterns=["vendor/**"])
         p = FileParser(config, project_root)
         fp = _write(project_root / "vendor" / "lib.py", "x = 1")
         result = await p.parse_file(fp)
         assert result is None
 
-    async def test_parse_empty_file(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    async def test_parse_empty_file(self, parser: FileParser, project_root: Path) -> None:
         fp = _write(project_root / "empty.py", "")
         result = await parser.parse_file(fp)
         assert result is not None
         assert len(result.nodes) >= 1  # MODULE node still created
 
-    async def test_parse_detects_test_file(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    async def test_parse_detects_test_file(self, parser: FileParser, project_root: Path) -> None:
         fp = _write(project_root / "test_utils.py", "def test_something(): pass")
         result = await parser.parse_file(fp)
         assert result is not None
@@ -426,17 +396,13 @@ class TestParseFile:
     async def test_parse_detects_generated_file(
         self, parser: FileParser, project_root: Path
     ) -> None:
-        fp = _write(
-            project_root / "gen.py", "# auto-generated\nclass Stub: pass\n"
-        )
+        fp = _write(project_root / "gen.py", "# auto-generated\nclass Stub: pass\n")
         result = await parser.parse_file(fp)
         assert result is not None
         assert result.is_generated is True
         assert result.nodes[0].is_generated is True
 
-    async def test_parse_detects_entry_point(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    async def test_parse_detects_entry_point(self, parser: FileParser, project_root: Path) -> None:
         fp = _write(project_root / "main.py", "if __name__ == '__main__': pass")
         result = await parser.parse_file(fp)
         assert result is not None
@@ -468,13 +434,7 @@ class TestParseFile:
     ) -> None:
         fp = _write(
             project_root / "models.py",
-            (
-                "class User:\n"
-                "    \"\"\"A user model.\"\"\"\n"
-                "    pass\n\n"
-                "def create_user():\n"
-                "    pass\n"
-            ),
+            ('class User:\n    """A user model."""\n    pass\n\ndef create_user():\n    pass\n'),
         )
         result = await parser.parse_file(fp)
         assert result is not None
@@ -502,14 +462,10 @@ class TestParseFile:
 class TestImportEdgeCases:
     """Granular tests for tricky import patterns."""
 
-    def test_from_future_handled_upstream(
-        self, parser: FileParser, project_root: Path
-    ) -> None:
+    def test_from_future_handled_upstream(self, parser: FileParser, project_root: Path) -> None:
         """__future__ imports are filtered at the caller level, not here."""
         fp = project_root / "mod.py"
-        result = parser._extract_import_module(
-            "from __future__ import annotations", fp
-        )
+        result = parser._extract_import_module("from __future__ import annotations", fp)
         # _extract_import_module still returns the module name;
         # filtering happens in _parse_python_import
         assert result == "__future__"

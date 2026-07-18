@@ -18,19 +18,19 @@ Edge cases:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
-from codebase_intel.core.exceptions import ErrorContext, ParseError
 from codebase_intel.core.types import Language
 from codebase_intel.graph.parser import FileParser, ParseResult, compute_file_hash, detect_language
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from codebase_intel.core.config import ProjectConfig
+    from codebase_intel.core.types import GraphEdge
     from codebase_intel.graph.storage import GraphStorage
 
 logger = logging.getLogger(__name__)
@@ -232,9 +232,7 @@ class GraphBuilder:
         in the graph (it's still code, just not tracked). Only remove nodes
         for files that are truly gone.
         """
-        cursor = await self._storage._db.execute(
-            "SELECT DISTINCT file_path FROM file_fingerprints"
-        )
+        cursor = await self._storage._db.execute("SELECT DISTINCT file_path FROM file_fingerprints")
         for row in await cursor.fetchall():
             stored_path = row[0]
             full_path = self._storage._from_stored_path(stored_path)
@@ -245,9 +243,7 @@ class GraphBuilder:
                     (stored_path,),
                 )
                 await self._storage._db.commit()
-                logger.debug(
-                    "Cleaned up %d nodes for deleted file %s", removed, stored_path
-                )
+                logger.debug("Cleaned up %d nodes for deleted file %s", removed, stored_path)
 
     async def _process_batch(
         self,
@@ -324,7 +320,7 @@ class GraphBuilder:
             node_count=len(result.nodes),
         )
 
-    def _discover_files(self) -> AsyncIterator[Path] | list[Path]:
+    def _discover_files(self) -> list[Path]:
         """Discover all source files in the project.
 
         Edge cases:
@@ -343,11 +339,29 @@ class GraphBuilder:
 
         # Directories to skip immediately by name (before fnmatch overhead)
         skip_dir_names = {
-            "node_modules", ".git", "__pycache__", ".venv", "venv",
-            ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-            ".next", ".nuxt", "dist", "build", ".eggs", "vendor",
-            ".gradle", ".idea", ".vscode", "coverage", "htmlcov",
-            ".terraform", ".cargo", "target",
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+            "venv",
+            ".tox",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".next",
+            ".nuxt",
+            "dist",
+            "build",
+            ".eggs",
+            "vendor",
+            ".gradle",
+            ".idea",
+            ".vscode",
+            "coverage",
+            "htmlcov",
+            ".terraform",
+            ".cargo",
+            "target",
         }
 
         def _should_ignore_file(path: Path) -> bool:

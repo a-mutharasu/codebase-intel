@@ -29,14 +29,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from codebase_intel.core.exceptions import ContextRotError, ErrorContext
 from codebase_intel.core.types import DriftLevel
 
 if TYPE_CHECKING:
-    from codebase_intel.core.config import DriftConfig, ProjectConfig
+    from pathlib import Path
+
+    from codebase_intel.core.config import DriftConfig
     from codebase_intel.decisions.store import DecisionStore
     from codebase_intel.graph.storage import GraphStorage
 
@@ -75,15 +75,21 @@ class DriftReport:
         if not self.items:
             return DriftLevel.NONE
         levels = [i.level for i in self.items]
-        severity = [DriftLevel.NONE, DriftLevel.LOW, DriftLevel.MEDIUM, DriftLevel.HIGH, DriftLevel.CRITICAL]
-        return max(levels, key=lambda l: severity.index(l))
+        severity = [
+            DriftLevel.NONE,
+            DriftLevel.LOW,
+            DriftLevel.MEDIUM,
+            DriftLevel.HIGH,
+            DriftLevel.CRITICAL,
+        ]
+        return max(levels, key=lambda level: severity.index(level))
 
     @property
     def summary(self) -> str:
         """One-line summary for CLI/MCP output."""
         if not self.items:
             return "No drift detected. All records are current."
-        counts = {}
+        counts: dict[str, int] = {}
         for item in self.items:
             counts[item.level.value] = counts.get(item.level.value, 0) + 1
         parts = [f"{v} {k}" for k, v in sorted(counts.items())]
@@ -210,13 +216,15 @@ class DriftDetector:
             full_path = self._graph._from_stored_path(stored_path)  # type: ignore[union-attr]
 
             if not full_path.exists():
-                report.items.append(DriftItem(
-                    component="graph",
-                    level=DriftLevel.HIGH,
-                    description=f"File {stored_path} was deleted but still in graph",
-                    file_path=full_path,
-                    remediation="Run `codebase-intel analyze` to update the graph",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="graph",
+                        level=DriftLevel.HIGH,
+                        description=f"File {stored_path} was deleted but still in graph",
+                        file_path=full_path,
+                        remediation="Run `codebase-intel analyze` to update the graph",
+                    )
+                )
                 stale_count += 1
                 continue
 
@@ -226,20 +234,20 @@ class DriftDetector:
                 continue
 
             if current_hash != stored_hash:
-                report.items.append(DriftItem(
-                    component="graph",
-                    level=DriftLevel.MEDIUM,
-                    description=f"File {stored_path} changed since last index",
-                    file_path=full_path,
-                    remediation="Run `codebase-intel analyze --incremental`",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="graph",
+                        level=DriftLevel.MEDIUM,
+                        description=f"File {stored_path} changed since last index",
+                        file_path=full_path,
+                        remediation="Run `codebase-intel analyze --incremental`",
+                    )
+                )
                 stale_count += 1
 
         report.graph_stale_files = stale_count
 
-    async def _check_graph_drift_for_files(
-        self, report: DriftReport, files: list[Path]
-    ) -> None:
+    async def _check_graph_drift_for_files(self, report: DriftReport, files: list[Path]) -> None:
         """Quick graph drift check for specific files."""
         from codebase_intel.graph.parser import compute_file_hash
 
@@ -250,13 +258,15 @@ class DriftDetector:
             stored_hash = await self._graph.get_fingerprint(fp)  # type: ignore[union-attr]
             if stored_hash is None:
                 # New file — not drift, just needs indexing
-                report.items.append(DriftItem(
-                    component="graph",
-                    level=DriftLevel.LOW,
-                    description=f"New file {fp.name} not yet in graph",
-                    file_path=fp,
-                    remediation="Will be indexed on next build",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="graph",
+                        level=DriftLevel.LOW,
+                        description=f"New file {fp.name} not yet in graph",
+                        file_path=fp,
+                        remediation="Will be indexed on next build",
+                    )
+                )
                 continue
 
             current_hash = compute_file_hash(fp.read_bytes())
@@ -294,50 +304,56 @@ class DriftDetector:
             if record.is_stale:
                 level = DriftLevel.MEDIUM
                 stale_count += 1
-                report.items.append(DriftItem(
-                    component="decision",
-                    level=level,
-                    description=(
-                        f"Decision {record.id} ('{record.title}') is past "
-                        f"its review date ({record.review_by})"
-                    ),
-                    record_id=record.id,
-                    remediation="Review and update the decision, or extend the review date",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="decision",
+                        level=level,
+                        description=(
+                            f"Decision {record.id} ('{record.title}') is past "
+                            f"its review date ({record.review_by})"
+                        ),
+                        record_id=record.id,
+                        remediation="Review and update the decision, or extend the review date",
+                    )
+                )
 
             # Check for expired constraints
             if record.is_expired:
-                report.items.append(DriftItem(
-                    component="decision",
-                    level=DriftLevel.HIGH,
-                    description=(
-                        f"Decision {record.id} has expired constraints — "
-                        f"the original rationale may no longer apply"
-                    ),
-                    record_id=record.id,
-                    remediation="Re-evaluate whether this decision still holds",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="decision",
+                        level=DriftLevel.HIGH,
+                        description=(
+                            f"Decision {record.id} has expired constraints — "
+                            f"the original rationale may no longer apply"
+                        ),
+                        record_id=record.id,
+                        remediation="Re-evaluate whether this decision still holds",
+                    )
+                )
 
             # Check for orphaned anchors
             if record.has_orphaned_anchors:
                 orphaned_count += 1
                 orphaned_paths = [
-                    str(a.file_path)
-                    for a in record.code_anchors
-                    if not a.file_path.exists()
+                    str(a.file_path) for a in record.code_anchors if not a.file_path.exists()
                 ]
                 level = DriftLevel.HIGH if record.is_stale else DriftLevel.MEDIUM
 
-                report.items.append(DriftItem(
-                    component="decision",
-                    level=level,
-                    description=(
-                        f"Decision {record.id} anchored to deleted files: "
-                        f"{', '.join(orphaned_paths[:3])}"
-                    ),
-                    record_id=record.id,
-                    remediation="Update code anchors to new file locations or supersede the decision",
-                ))
+                report.items.append(
+                    DriftItem(
+                        component="decision",
+                        level=level,
+                        description=(
+                            f"Decision {record.id} anchored to deleted files: "
+                            f"{', '.join(orphaned_paths[:3])}"
+                        ),
+                        record_id=record.id,
+                        remediation=(
+                            "Update code anchors to new file locations or supersede the decision"
+                        ),
+                    )
+                )
 
             # Check content hash drift on remaining anchors
             for anchor in record.code_anchors:
@@ -355,29 +371,30 @@ class DriftDetector:
                         region = content
 
                     from codebase_intel.graph.parser import compute_file_hash
+
                     current_hash = compute_file_hash(region.encode())
 
                     if current_hash != anchor.content_hash:
-                        report.items.append(DriftItem(
-                            component="decision",
-                            level=DriftLevel.MEDIUM,
-                            description=(
-                                f"Code anchored by {record.id} at "
-                                f"{anchor.file_path.name} has changed"
-                            ),
-                            file_path=anchor.file_path,
-                            record_id=record.id,
-                            remediation="Verify the decision still applies to the changed code",
-                        ))
+                        report.items.append(
+                            DriftItem(
+                                component="decision",
+                                level=DriftLevel.MEDIUM,
+                                description=(
+                                    f"Code anchored by {record.id} at "
+                                    f"{anchor.file_path.name} has changed"
+                                ),
+                                file_path=anchor.file_path,
+                                record_id=record.id,
+                                remediation="Verify the decision still applies to the changed code",
+                            )
+                        )
                 except OSError:
                     pass
 
         report.decision_stale_count = stale_count
         report.decision_orphaned_count = orphaned_count
 
-    async def _check_decision_drift_for_files(
-        self, report: DriftReport, files: list[Path]
-    ) -> None:
+    async def _check_decision_drift_for_files(self, report: DriftReport, files: list[Path]) -> None:
         """Quick decision drift check for specific changed files."""
         file_set = {fp.resolve() for fp in files}
         all_decisions = await self._decisions.load_all()  # type: ignore[union-attr]
@@ -388,17 +405,19 @@ class DriftDetector:
 
             for anchor in record.code_anchors:
                 if anchor.file_path.resolve() in file_set:
-                    report.items.append(DriftItem(
-                        component="decision",
-                        level=DriftLevel.LOW,
-                        description=(
-                            f"Changed file {anchor.file_path.name} is anchored "
-                            f"by decision {record.id}"
-                        ),
-                        file_path=anchor.file_path,
-                        record_id=record.id,
-                        remediation="Verify the decision still applies after your changes",
-                    ))
+                    report.items.append(
+                        DriftItem(
+                            component="decision",
+                            level=DriftLevel.LOW,
+                            description=(
+                                f"Changed file {anchor.file_path.name} is anchored "
+                                f"by decision {record.id}"
+                            ),
+                            file_path=anchor.file_path,
+                            record_id=record.id,
+                            remediation="Verify the decision still applies after your changes",
+                        )
+                    )
 
     # -------------------------------------------------------------------
     # Context rot detection
@@ -429,15 +448,17 @@ class DriftDetector:
 
         if rot_pct >= self._config.rot_threshold_pct:
             report.rot_detected = True
-            report.items.append(DriftItem(
-                component="system",
-                level=DriftLevel.CRITICAL,
-                description=(
-                    f"Context rot: {rot_pct:.0%} of decision records are stale or orphaned "
-                    f"({stale}/{total})"
-                ),
-                remediation=(
-                    "Run `codebase-intel refresh` to identify and update stale records. "
-                    "Consider a team review session for bulk cleanup."
-                ),
-            ))
+            report.items.append(
+                DriftItem(
+                    component="system",
+                    level=DriftLevel.CRITICAL,
+                    description=(
+                        f"Context rot: {rot_pct:.0%} of decision records are stale or orphaned "
+                        f"({stale}/{total})"
+                    ),
+                    remediation=(
+                        "Run `codebase-intel refresh` to identify and update stale records. "
+                        "Consider a team review session for bulk cleanup."
+                    ),
+                )
+            )

@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
 
 import pytest
 
 from codebase_intel.core.config import DriftConfig
-from codebase_intel.core.types import CodeAnchor, DecisionStatus, LineRange
+from codebase_intel.core.types import CodeAnchor, DecisionStatus
 from codebase_intel.decisions.models import Constraint, DecisionRecord
-from codebase_intel.drift.detector import DriftDetector, DriftItem, DriftReport, DriftLevel
+from codebase_intel.drift.detector import DriftDetector, DriftItem, DriftLevel, DriftReport
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # DriftReport tests
@@ -27,33 +29,43 @@ class TestDriftReport:
         assert report.to_context_string() == ""
 
     def test_overall_level_takes_max(self) -> None:
-        report = DriftReport(items=[
-            DriftItem(component="graph", level=DriftLevel.LOW, description="a"),
-            DriftItem(component="decision", level=DriftLevel.HIGH, description="b"),
-            DriftItem(component="graph", level=DriftLevel.MEDIUM, description="c"),
-        ])
+        report = DriftReport(
+            items=[
+                DriftItem(component="graph", level=DriftLevel.LOW, description="a"),
+                DriftItem(component="decision", level=DriftLevel.HIGH, description="b"),
+                DriftItem(component="graph", level=DriftLevel.MEDIUM, description="c"),
+            ]
+        )
         assert report.overall_level == DriftLevel.HIGH
 
     def test_critical_level(self) -> None:
-        report = DriftReport(items=[
-            DriftItem(component="system", level=DriftLevel.CRITICAL, description="rot"),
-        ])
+        report = DriftReport(
+            items=[
+                DriftItem(component="system", level=DriftLevel.CRITICAL, description="rot"),
+            ]
+        )
         assert report.overall_level == DriftLevel.CRITICAL
 
     def test_summary_includes_counts(self) -> None:
-        report = DriftReport(items=[
-            DriftItem(component="a", level=DriftLevel.LOW, description="x"),
-            DriftItem(component="b", level=DriftLevel.LOW, description="y"),
-            DriftItem(component="c", level=DriftLevel.HIGH, description="z"),
-        ])
+        report = DriftReport(
+            items=[
+                DriftItem(component="a", level=DriftLevel.LOW, description="x"),
+                DriftItem(component="b", level=DriftLevel.LOW, description="y"),
+                DriftItem(component="c", level=DriftLevel.HIGH, description="z"),
+            ]
+        )
         assert "2 low" in report.summary
         assert "1 high" in report.summary
 
     def test_to_context_string_groups_by_component(self) -> None:
-        report = DriftReport(items=[
-            DriftItem(component="graph", level=DriftLevel.LOW, description="graph issue"),
-            DriftItem(component="decision", level=DriftLevel.MEDIUM, description="decision issue"),
-        ])
+        report = DriftReport(
+            items=[
+                DriftItem(component="graph", level=DriftLevel.LOW, description="graph issue"),
+                DriftItem(
+                    component="decision", level=DriftLevel.MEDIUM, description="decision issue"
+                ),
+            ]
+        )
         ctx = report.to_context_string()
         assert "Graph" in ctx
         assert "Decision" in ctx
@@ -123,7 +135,11 @@ class TestDriftDetectorDecisions:
         )
 
         report = await detector.full_check()
-        stale_items = [i for i in report.items if "past" in i.description.lower() and "review" in i.description.lower()]
+        stale_items = [
+            i
+            for i in report.items
+            if "past" in i.description.lower() and "review" in i.description.lower()
+        ]
         assert len(stale_items) >= 1
 
     @pytest.mark.asyncio
@@ -148,7 +164,11 @@ class TestDriftDetectorDecisions:
         )
 
         report = await detector.full_check()
-        stale_items = [i for i in report.items if "past" in i.description.lower() and "review" in i.description.lower()]
+        stale_items = [
+            i
+            for i in report.items
+            if "past" in i.description.lower() and "review" in i.description.lower()
+        ]
         assert len(stale_items) == 0
 
     @pytest.mark.asyncio
@@ -174,7 +194,11 @@ class TestDriftDetectorDecisions:
         )
 
         report = await detector.full_check()
-        orphan_items = [i for i in report.items if "deleted" in i.description.lower() or "orphan" in i.description.lower()]
+        orphan_items = [
+            i
+            for i in report.items
+            if "deleted" in i.description.lower() or "orphan" in i.description.lower()
+        ]
         assert len(orphan_items) >= 1
 
     @pytest.mark.asyncio
@@ -252,23 +276,27 @@ class TestContextRotDetection:
         records = []
         # 4 stale out of 6 total = 66% > 30% threshold
         for i in range(4):
-            records.append(DecisionRecord(
-                id=f"DEC-{i:03d}",
-                title=f"Stale {i}",
-                status=DecisionStatus.ACTIVE,
-                context="test",
-                decision="test",
-                review_by=past,
-            ))
+            records.append(
+                DecisionRecord(
+                    id=f"DEC-{i:03d}",
+                    title=f"Stale {i}",
+                    status=DecisionStatus.ACTIVE,
+                    context="test",
+                    decision="test",
+                    review_by=past,
+                )
+            )
         for i in range(4, 6):
-            records.append(DecisionRecord(
-                id=f"DEC-{i:03d}",
-                title=f"Fresh {i}",
-                status=DecisionStatus.ACTIVE,
-                context="test",
-                decision="test",
-                review_by=future,
-            ))
+            records.append(
+                DecisionRecord(
+                    id=f"DEC-{i:03d}",
+                    title=f"Fresh {i}",
+                    status=DecisionStatus.ACTIVE,
+                    context="test",
+                    decision="test",
+                    review_by=future,
+                )
+            )
 
         store.load_all.return_value = records
 
@@ -293,23 +321,27 @@ class TestContextRotDetection:
 
         records = []
         # 1 stale out of 5 = 20% < 30%
-        records.append(DecisionRecord(
-            id="DEC-000",
-            title="Stale",
-            status=DecisionStatus.ACTIVE,
-            context="test",
-            decision="test",
-            review_by=past,
-        ))
-        for i in range(1, 5):
-            records.append(DecisionRecord(
-                id=f"DEC-{i:03d}",
-                title=f"Fresh {i}",
+        records.append(
+            DecisionRecord(
+                id="DEC-000",
+                title="Stale",
                 status=DecisionStatus.ACTIVE,
                 context="test",
                 decision="test",
-                review_by=future,
-            ))
+                review_by=past,
+            )
+        )
+        for i in range(1, 5):
+            records.append(
+                DecisionRecord(
+                    id=f"DEC-{i:03d}",
+                    title=f"Fresh {i}",
+                    status=DecisionStatus.ACTIVE,
+                    context="test",
+                    decision="test",
+                    review_by=future,
+                )
+            )
 
         store.load_all.return_value = records
 

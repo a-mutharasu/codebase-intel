@@ -25,16 +25,18 @@ Edge cases in design:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from codebase_intel.core.types import ContractSeverity, Language
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-class RuleKind(str, Enum):
+
+class RuleKind(StrEnum):
     """Types of quality rules."""
 
     ARCHITECTURAL = "architectural"  # Structural: layer violations, dependency direction
@@ -339,7 +341,9 @@ def builtin_ai_guardrails() -> QualityContract:
                 ),
                 kind=RuleKind.AI_ANTIPATTERN,
                 severity=ContractSeverity.WARNING,
-                fix_suggestion="Inline the logic. Create abstractions only when there are 3+ users.",
+                fix_suggestion=(
+                    "Inline the logic. Create abstractions only when there are 3+ users."
+                ),
             ),
             ContractRule(
                 id="no-unnecessary-error-handling",
@@ -351,19 +355,24 @@ def builtin_ai_guardrails() -> QualityContract:
                 ),
                 kind=RuleKind.AI_ANTIPATTERN,
                 severity=ContractSeverity.WARNING,
-                fix_suggestion="Remove error handling for impossible conditions. Trust types and validation.",
+                fix_suggestion=(
+                    "Remove error handling for impossible conditions. Trust types and validation."
+                ),
             ),
             ContractRule(
                 id="no-restating-comments",
                 name="No comments that restate code",
                 description=(
-                    "AI generates excessive comments like '# Increment counter' above 'counter += 1'. "
+                    "AI generates excessive comments like '# Increment counter' above "
+                    "'counter += 1'. "
                     "Comments should explain WHY, never WHAT."
                 ),
                 kind=RuleKind.AI_ANTIPATTERN,
                 severity=ContractSeverity.INFO,
                 pattern=r"#\s*(set|get|create|update|delete|increment|initialize|return)\s",
-                fix_suggestion="Remove comments that describe what the code does. Only keep WHY comments.",
+                fix_suggestion=(
+                    "Remove comments that describe what the code does. Only keep WHY comments."
+                ),
             ),
             ContractRule(
                 id="no-speculative-features",
@@ -374,7 +383,9 @@ def builtin_ai_guardrails() -> QualityContract:
                 ),
                 kind=RuleKind.AI_ANTIPATTERN,
                 severity=ContractSeverity.WARNING,
-                fix_suggestion="Remove features not explicitly requested. Build exactly what was asked.",
+                fix_suggestion=(
+                    "Remove features not explicitly requested. Build exactly what was asked."
+                ),
             ),
             ContractRule(
                 id="no-excessive-logging",
@@ -396,7 +407,10 @@ def builtin_architecture_rules() -> QualityContract:
     return QualityContract(
         id="architecture-basics",
         name="Basic Architecture Rules",
-        description="Fundamental architectural constraints: layer separation, dependency direction, no circular imports.",
+        description=(
+            "Fundamental architectural constraints: layer separation, dependency direction, "
+            "no circular imports."
+        ),
         priority=400,
         is_builtin=True,
         tags=["architecture"],
@@ -404,7 +418,10 @@ def builtin_architecture_rules() -> QualityContract:
             ContractRule(
                 id="no-circular-imports",
                 name="No circular import chains",
-                description="Circular imports cause initialization issues and indicate tangled architecture.",
+                description=(
+                    "Circular imports cause initialization issues and indicate "
+                    "tangled architecture."
+                ),
                 kind=RuleKind.ARCHITECTURAL,
                 severity=ContractSeverity.WARNING,
                 fix_suggestion="Break the cycle by extracting shared types into a separate module.",

@@ -114,18 +114,14 @@ class GlobalRegistry:
                 "root_path": entry.root_path,
                 "name": entry.name,
                 "registered_at": entry.registered_at.isoformat(),
-                "last_accessed": entry.last_accessed.isoformat()
-                if entry.last_accessed
-                else None,
+                "last_accessed": entry.last_accessed.isoformat() if entry.last_accessed else None,
                 "initialized": entry.initialized,
             }
 
         self._global_dir.mkdir(parents=True, exist_ok=True)
 
         # Atomic write: write to temp file then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._global_dir), suffix=".yaml.tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._global_dir), suffix=".yaml.tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)

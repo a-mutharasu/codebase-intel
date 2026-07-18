@@ -26,7 +26,6 @@ from codebase_intel.core.types import (
     EdgeKind,
     GraphEdge,
     GraphNode,
-    Language,
     NodeKind,
 )
 
@@ -49,9 +48,7 @@ class RelevanceResult:
 
     def nodes_by_priority(self) -> dict[ContextPriority, list[GraphNode]]:
         """Group nodes by their assigned priority."""
-        grouped: dict[ContextPriority, list[GraphNode]] = {
-            p: [] for p in ContextPriority
-        }
+        grouped: dict[ContextPriority, list[GraphNode]] = {p: [] for p in ContextPriority}
         for node in self.nodes:
             priority = self.priorities.get(node.node_id, ContextPriority.LOW)
             grouped[priority].append(node)
@@ -157,9 +154,7 @@ class GraphQueryEngine:
                             seen_ids.add(test_node.node_id)
                             result.nodes.append(test_node)
                             result.priorities[test_node.node_id] = ContextPriority.LOW
-                            result.explanations[test_node.node_id] = (
-                                f"Test file for {fp.name}"
-                            )
+                            result.explanations[test_node.node_id] = f"Test file for {fp.name}"
 
         return result
 
@@ -196,21 +191,15 @@ class GraphQueryEngine:
             result.explanations[node.node_id] = f"Matched symbol '{symbol_name}'"
 
             # Get dependencies and dependents
-            deps = await self._storage.get_dependencies(
-                node.node_id, max_depth=include_depth
-            )
-            dependents = await self._storage.get_dependents(
-                node.node_id, max_depth=1
-            )
+            deps = await self._storage.get_dependencies(node.node_id, max_depth=include_depth)
+            dependents = await self._storage.get_dependents(node.node_id, max_depth=1)
 
             for dep in deps:
                 if dep.node_id not in seen_ids and not dep.is_external:
                     seen_ids.add(dep.node_id)
                     result.nodes.append(dep)
                     result.priorities[dep.node_id] = ContextPriority.HIGH
-                    result.explanations[dep.node_id] = (
-                        f"Dependency of {symbol_name}"
-                    )
+                    result.explanations[dep.node_id] = f"Dependency of {symbol_name}"
 
             for dep in dependents:
                 if dep.node_id not in seen_ids and not dep.is_external:
@@ -272,9 +261,7 @@ class GraphQueryEngine:
                 seen_ids.add(node.node_id)
                 result.nodes.append(node)
                 result.priorities[node.node_id] = ContextPriority.HIGH
-                result.explanations[node.node_id] = (
-                    f"Depends on changed file {Path(file_key).name}"
-                )
+                result.explanations[node.node_id] = f"Depends on changed file {Path(file_key).name}"
 
         return result
 
@@ -365,8 +352,8 @@ class GraphQueryEngine:
                        metadata_json
                 FROM nodes
                 WHERE kind = 'module' AND is_test = 1
-                AND ({' OR '.join(f"name = ?" for _ in test_patterns)})
-                """,
+                AND ({" OR ".join("name = ?" for _ in test_patterns)})
+                """,  # noqa: S608 — interpolation only expands '?' placeholders; values are bound
                 test_patterns,
             )
             for row in await cursor.fetchall():

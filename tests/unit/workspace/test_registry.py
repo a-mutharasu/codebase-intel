@@ -108,9 +108,7 @@ class TestGlobalRegistry:
     def test_get_nonexistent(self, registry: GlobalRegistry) -> None:
         assert registry.get("nope") is None
 
-    def test_get_all(
-        self, registry: GlobalRegistry, project_a: Path, project_b: Path
-    ) -> None:
+    def test_get_all(self, registry: GlobalRegistry, project_a: Path, project_b: Path) -> None:
         registry.register(project_a)
         registry.register(project_b)
         all_projects = registry.get_all()
@@ -118,25 +116,19 @@ class TestGlobalRegistry:
         ids = {p.project_id for p in all_projects}
         assert ids == {"project-a", "project-b"}
 
-    def test_get_valid_excludes_missing(
-        self, registry: GlobalRegistry, project_a: Path
-    ) -> None:
+    def test_get_valid_excludes_missing(self, registry: GlobalRegistry, project_a: Path) -> None:
         registry.register(project_a)
         # Manually add a project with nonexistent path
         from codebase_intel.workspace.registry import ProjectEntry
 
-        registry._projects["ghost"] = ProjectEntry(
-            project_id="ghost", root_path="/nonexistent"
-        )
+        registry._projects["ghost"] = ProjectEntry(project_id="ghost", root_path="/nonexistent")
         registry._save()
 
         valid = registry.get_valid()
         assert len(valid) == 1
         assert valid[0].project_id == "project-a"
 
-    def test_find_by_path_direct_match(
-        self, registry: GlobalRegistry, project_a: Path
-    ) -> None:
+    def test_find_by_path_direct_match(self, registry: GlobalRegistry, project_a: Path) -> None:
         registry.register(project_a)
         entry = registry.find_by_path(project_a / "src" / "main.py")
         assert entry is not None
@@ -145,9 +137,7 @@ class TestGlobalRegistry:
     def test_find_by_path_no_match(self, registry: GlobalRegistry) -> None:
         assert registry.find_by_path(Path("/random/file.py")) is None
 
-    def test_find_by_path_picks_deepest(
-        self, registry: GlobalRegistry, tmp_path: Path
-    ) -> None:
+    def test_find_by_path_picks_deepest(self, registry: GlobalRegistry, tmp_path: Path) -> None:
         """Nested projects: pick the most specific match."""
         parent = tmp_path / "monorepo"
         parent.mkdir()
@@ -163,9 +153,7 @@ class TestGlobalRegistry:
         assert entry is not None
         assert entry.project_id == "auth-svc"
 
-    def test_persistence_across_instances(
-        self, global_dir: Path, project_a: Path
-    ) -> None:
+    def test_persistence_across_instances(self, global_dir: Path, project_a: Path) -> None:
         """Registry survives restart (new instance reads from disk)."""
         reg1 = GlobalRegistry(global_dir=global_dir)
         reg1.register(project_a)
@@ -184,9 +172,7 @@ class TestGlobalRegistry:
         assert project_a in paths
         assert project_b in paths
 
-    def test_touch_updates_last_accessed(
-        self, registry: GlobalRegistry, project_a: Path
-    ) -> None:
+    def test_touch_updates_last_accessed(self, registry: GlobalRegistry, project_a: Path) -> None:
         entry = registry.register(project_a)
         before = entry.last_accessed
 

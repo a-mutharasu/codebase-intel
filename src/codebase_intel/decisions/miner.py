@@ -25,13 +25,14 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from codebase_intel.core.types import CodeAnchor, DecisionStatus
 from codebase_intel.decisions.models import DecisionRecord
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from codebase_intel.core.config import DecisionConfig
 
 logger = logging.getLogger(__name__)
@@ -39,18 +40,45 @@ logger = logging.getLogger(__name__)
 # Keywords that suggest a commit/PR contains a decision
 DECISION_KEYWORDS = [
     # Architecture
-    "decided", "decision", "chose", "chosen", "opted for", "switched to",
-    "migrated from", "replaced", "instead of", "rather than",
+    "decided",
+    "decision",
+    "chose",
+    "chosen",
+    "opted for",
+    "switched to",
+    "migrated from",
+    "replaced",
+    "instead of",
+    "rather than",
     # Reasoning
-    "because", "reason:", "rationale:", "why:", "trade-off", "tradeoff",
-    "considered", "evaluated", "compared",
+    "because",
+    "reason:",
+    "rationale:",
+    "why:",
+    "trade-off",
+    "tradeoff",
+    "considered",
+    "evaluated",
+    "compared",
     # Constraints
-    "compliance", "regulation", "requirement", "sla", "must not", "cannot",
-    "forbidden", "prohibited",
+    "compliance",
+    "regulation",
+    "requirement",
+    "sla",
+    "must not",
+    "cannot",
+    "forbidden",
+    "prohibited",
     # Breaking changes
-    "breaking change", "breaking:", "deprecated", "removed",
+    "breaking change",
+    "breaking:",
+    "deprecated",
+    "removed",
     # Architecture-specific
-    "adr", "architecture decision", "design decision", "rfc",
+    "adr",
+    "architecture decision",
+    "design decision",
+    "rfc",
 ]
 
 # Patterns that indicate a commit should be skipped
@@ -82,9 +110,7 @@ class DecisionCandidate:
 
     def to_decision_record(self, decision_id: str) -> DecisionRecord:
         """Convert this candidate to a draft DecisionRecord."""
-        anchors = [
-            CodeAnchor(file_path=fp) for fp in self.changed_files[:10]
-        ]
+        anchors = [CodeAnchor(file_path=fp) for fp in self.changed_files[:10]]
 
         return DecisionRecord(
             id=decision_id,
@@ -141,14 +167,18 @@ class GitMiner:
         candidates: list[DecisionCandidate] = []
         count = 0
 
-        since_dt = datetime.now(UTC).replace(
+        datetime.now(UTC).replace(
             day=max(1, datetime.now(UTC).day),
         )
 
         for commit in repo.iter_commits(max_count=max_commits):
             count += 1
 
-            message = commit.message.strip()
+            raw_message = commit.message
+            # GitPython yields bytes when a commit message has no valid encoding header
+            if isinstance(raw_message, bytes):
+                raw_message = raw_message.decode("utf-8", errors="replace")
+            message = raw_message.strip()
             if not message:
                 continue
 
@@ -166,34 +196,31 @@ class GitMiner:
             try:
                 if commit.parents:
                     diff = commit.parents[0].diff(commit)
-                    changed_files = [
-                        self._project_root / d.a_path
-                        for d in diff
-                        if d.a_path
-                    ]
+                    changed_files = [self._project_root / d.a_path for d in diff if d.a_path]
             except Exception:
-                pass  # Diff extraction is best-effort
+                # Diff extraction is best-effort — a broken parent diff must not abort mining
+                logger.debug("Diff extraction failed for %s", commit.hexsha, exc_info=True)
 
             # Build candidate
             title = self._extract_title(message)
             context, decision_text = self._extract_context_and_decision(message)
 
-            confidence = self._compute_confidence(
-                message, matched_keywords, changed_files
-            )
+            confidence = self._compute_confidence(message, matched_keywords, changed_files)
 
-            candidates.append(DecisionCandidate(
-                title=title,
-                context=context,
-                decision_text=decision_text,
-                source_type="commit",
-                source_ref=str(commit.hexsha)[:12],
-                author=commit.author.name if commit.author else "unknown",
-                created_at=datetime.fromtimestamp(commit.committed_date, tz=UTC),
-                changed_files=changed_files[:20],
-                confidence=confidence,
-                keywords_matched=matched_keywords,
-            ))
+            candidates.append(
+                DecisionCandidate(
+                    title=title,
+                    context=context,
+                    decision_text=decision_text,
+                    source_type="commit",
+                    source_ref=str(commit.hexsha)[:12],
+                    author=(commit.author.name if commit.author else None) or "unknown",
+                    created_at=datetime.fromtimestamp(commit.committed_date, tz=UTC),
+                    changed_files=changed_files[:20],
+                    confidence=confidence,
+                    keywords_matched=matched_keywords,
+                )
+            )
 
         logger.info(
             "Mined %d commits, found %d decision candidates",
@@ -228,9 +255,7 @@ class GitMiner:
             return first_line[:77] + "..."
         return first_line
 
-    def _extract_context_and_decision(
-        self, message: str
-    ) -> tuple[str, str]:
+    def _extract_context_and_decision(self, message: str) -> tuple[str, str]:
         """Separate the context ("why") from the decision ("what") in a message.
 
         Heuristic: lines before "because"/"reason:" are the decision,

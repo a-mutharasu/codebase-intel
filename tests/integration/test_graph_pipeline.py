@@ -124,9 +124,7 @@ def _create_project(root: Path) -> dict[str, Path]:
 class TestFullBuildPipeline:
     """Run full_build on a small project and verify the resulting graph."""
 
-    async def test_full_build_creates_nodes_for_all_files(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_creates_nodes_for_all_files(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         _create_project(root)
@@ -139,9 +137,7 @@ class TestFullBuildPipeline:
         assert progress.processed >= 4  # at least 4 files
         assert progress.nodes_created >= 4  # at least one MODULE per file
 
-    async def test_full_build_creates_module_nodes(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_creates_module_nodes(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -159,9 +155,7 @@ class TestFullBuildPipeline:
                     f"Expected 1 MODULE node for {name}.py, got {len(module_nodes)}"
                 )
 
-    async def test_full_build_creates_class_nodes(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_creates_class_nodes(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -177,9 +171,7 @@ class TestFullBuildPipeline:
             assert "User" in class_names
             assert "Order" in class_names
 
-    async def test_full_build_creates_function_nodes(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_creates_function_nodes(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -195,9 +187,7 @@ class TestFullBuildPipeline:
             assert "create_user" in func_names
             assert "place_order" in func_names
 
-    async def test_full_build_creates_import_edges(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_creates_import_edges(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         _create_project(root)
@@ -208,9 +198,7 @@ class TestFullBuildPipeline:
             progress = await builder.full_build()
             assert progress.edges_created > 0
 
-    async def test_full_build_stats_consistent(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_full_build_stats_consistent(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         _create_project(root)
@@ -240,16 +228,12 @@ class TestImpactAnalysis:
             await builder.full_build()
 
             # Changing models.py should affect service.py and routes.py
-            result = await storage.impact_analysis(
-                [files["models"]], max_depth=3
-            )
+            result = await storage.impact_analysis([files["models"]], max_depth=3)
 
         affected = result.get(str(files["models"]), [])
         # service.py imports models directly; routes.py imports service
         # At minimum, service.py should appear
-        assert len(affected) > 0, (
-            "Expected at least one affected node when models.py changes"
-        )
+        assert len(affected) > 0, "Expected at least one affected node when models.py changes"
 
     async def test_impact_of_isolated_file(self, tmp_path: Path) -> None:
         """utils.py has no dependents => impact analysis returns empty."""
@@ -262,9 +246,7 @@ class TestImpactAnalysis:
             builder = GraphBuilder(config, storage)
             await builder.full_build()
 
-            result = await storage.impact_analysis(
-                [files["utils"]], max_depth=3
-            )
+            result = await storage.impact_analysis([files["utils"]], max_depth=3)
 
         affected = result.get(str(files["utils"]), [])
         assert len(affected) == 0
@@ -273,9 +255,7 @@ class TestImpactAnalysis:
 class TestIncrementalBuild:
     """Verify incremental builds only re-parse changed files."""
 
-    async def test_incremental_build_only_processes_changed_file(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_incremental_build_only_processes_changed_file(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -300,17 +280,13 @@ class TestIncrementalBuild:
 
         async with GraphStorage.open(config.graph, root) as storage:
             builder = GraphBuilder(config, storage)
-            progress = await builder.incremental_build(
-                changed_files=[files["utils"]]
-            )
+            progress = await builder.incremental_build(changed_files=[files["utils"]])
 
         # Only utils.py was re-processed
         assert progress.processed == 1
         assert progress.total_files == 1
 
-    async def test_incremental_build_updates_nodes(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_incremental_build_updates_nodes(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -329,15 +305,11 @@ class TestIncrementalBuild:
             await builder.incremental_build(changed_files=[files["utils"]])
 
             utils_nodes = await storage.get_nodes_by_file(files["utils"])
-            func_names = {
-                n.name for n in utils_nodes if n.kind == NodeKind.FUNCTION
-            }
+            func_names = {n.name for n in utils_nodes if n.kind == NodeKind.FUNCTION}
             assert "new_helper" in func_names
             assert "hash_string" in func_names
 
-    async def test_incremental_build_handles_deleted_file(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_incremental_build_handles_deleted_file(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -352,17 +324,13 @@ class TestIncrementalBuild:
 
         async with GraphStorage.open(config.graph, root) as storage:
             builder = GraphBuilder(config, storage)
-            await builder.incremental_build(
-                changed_files=[files["utils"]]
-            )
+            await builder.incremental_build(changed_files=[files["utils"]])
 
             # File was deleted, so its nodes should be gone
             nodes = await storage.get_nodes_by_file(files["utils"])
             assert len(nodes) == 0
 
-    async def test_incremental_build_preserves_untouched_files(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_incremental_build_preserves_untouched_files(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -390,9 +358,7 @@ class TestIncrementalBuild:
 class TestCleanupDeletedFiles:
     """Verify that cleanup_deleted_files removes orphaned nodes."""
 
-    async def test_cleanup_removes_nodes_for_deleted_files(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_cleanup_removes_nodes_for_deleted_files(self, tmp_path: Path) -> None:
         root = tmp_path / "project"
         root.mkdir()
         files = _create_project(root)
@@ -439,9 +405,7 @@ class TestBuildProgress:
         assert summary["nodes_created"] >= 4
         assert summary["failed"] == 0
 
-    async def test_empty_project_completes_without_error(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_empty_project_completes_without_error(self, tmp_path: Path) -> None:
         root = tmp_path / "empty_project"
         root.mkdir()
         config = _make_project_config(root, tmp_path / "graph.db")

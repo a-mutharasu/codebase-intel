@@ -20,8 +20,10 @@ import json
 import logging
 import sqlite3
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +202,7 @@ class AnalyticsTracker:
         avg_full = sum(full_tokens) // max(len(full_tokens), 1)
 
         reductions = []
-        for n, f in zip(naive_tokens, full_tokens):
+        for n, f in zip(naive_tokens, full_tokens, strict=False):
             if n > 0:
                 reductions.append((1 - f / n) * 100)
         avg_reduction = sum(reductions) / max(len(reductions), 1)
@@ -367,9 +369,7 @@ class AnalyticsTracker:
             "improvement": {
                 "token_reduction_pct": tokens["reduction_pct"],
                 "tokens_saved_total": tokens["total_saved"],
-                "multiplier": round(
-                    tokens["total_naive"] / max(tokens["total_full"], 1), 1
-                ),
+                "multiplier": round(tokens["total_naive"] / max(tokens["total_full"], 1), 1),
                 "decisions_that_prevented_mistakes": quality["decisions_surfaced"],
                 "violations_caught_before_generation": quality["contracts_applied"],
             },

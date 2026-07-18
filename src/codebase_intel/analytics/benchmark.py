@@ -17,13 +17,15 @@ numbers every time for the same repo state.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from codebase_intel.analytics.tracker import AnalyticsTracker
+if TYPE_CHECKING:
+    from codebase_intel.analytics.tracker import AnalyticsTracker
 
 logger = logging.getLogger(__name__)
 
@@ -137,11 +139,13 @@ class BenchmarkReport:
         """Format as a markdown table for README/reports."""
         lines = [
             f"## Benchmark: {self.repo_name}",
-            f"",
-            f"**Graph:** {self.total_files} files → {self.total_nodes} nodes, {self.total_edges} edges (built in {self.build_time_ms:.0f}ms)",
-            f"",
-            f"| Scenario | Naive Tokens | Graph Tokens | Full Tokens | Reduction | Multiplier | Decisions | Contracts |",
-            f"|---|---:|---:|---:|---:|---:|---:|---:|",
+            "",
+            f"**Graph:** {self.total_files} files → {self.total_nodes} nodes, "
+            f"{self.total_edges} edges (built in {self.build_time_ms:.0f}ms)",
+            "",
+            "| Scenario | Naive Tokens | Graph Tokens | Full Tokens | Reduction | "
+            "Multiplier | Decisions | Contracts |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
 
         for s in self.scenarios:
@@ -207,9 +211,7 @@ class BenchmarkRunner:
 
             # Run each scenario
             for scenario in scenarios:
-                result = await self._run_scenario(
-                    scenario, config, storage, engine
-                )
+                result = await self._run_scenario(scenario, config, storage, engine)
                 report.scenarios.append(result)
 
         # Record in tracker if provided
@@ -234,7 +236,7 @@ class BenchmarkRunner:
         engine: Any,
     ) -> ScenarioResult:
         """Run a single scenario in naive, graph, and full modes."""
-        from codebase_intel.orchestrator.assembler import estimate_tokens
+        from codebase_intel.core.tokens import estimate_tokens
 
         target_paths = [self._project_root / f for f in scenario.target_files]
         existing_paths = [p for p in target_paths if p.exists()]
@@ -265,12 +267,14 @@ class BenchmarkRunner:
                     continue
                 try:
                     for child in ancestor_dir.iterdir():
-                        if child.is_file() and child.suffix in code_extensions and child not in naive_files:
+                        if (
+                            child.is_file()
+                            and child.suffix in code_extensions
+                            and child not in naive_files
+                        ):
                             naive_files.add(child)
-                            try:
+                            with contextlib.suppress(OSError):
                                 naive_content += child.read_text(encoding="utf-8", errors="ignore")
-                            except OSError:
-                                pass
                 except OSError:
                     pass
 
@@ -287,10 +291,8 @@ class BenchmarkRunner:
         for node in graph_result.nodes:
             if node.file_path not in graph_files_set and node.file_path.exists():
                 graph_files_set.add(node.file_path)
-                try:
+                with contextlib.suppress(OSError):
                     graph_content += node.file_path.read_text(encoding="utf-8", errors="ignore")
-                except OSError:
-                    pass
 
         result.graph_tokens = estimate_tokens(graph_content)
         result.graph_files = len(graph_files_set)
@@ -299,9 +301,9 @@ class BenchmarkRunner:
         start = time.monotonic()
 
         from codebase_intel.contracts.registry import ContractRegistry
+        from codebase_intel.core.types import TokenBudget
         from codebase_intel.decisions.store import DecisionStore
         from codebase_intel.orchestrator.assembler import ContextAssembler
-        from codebase_intel.core.types import TokenBudget
 
         decision_store = DecisionStore(config.decisions, self._project_root)
         contract_registry = ContractRegistry(config.contracts, self._project_root)
@@ -317,16 +319,20 @@ class BenchmarkRunner:
         assembled = await assembler.assemble(
             task_description=scenario.task_description,
             file_paths=existing_paths,
-            budget=TokenBudget(total=8_000),  # Realistic agent budget — shows how well we prioritize
+            budget=TokenBudget(
+                total=8_000
+            ),  # Realistic agent budget — shows how well we prioritize
         )
 
         result.full_assembly_ms = (time.monotonic() - start) * 1000
         result.full_tokens = assembled.total_tokens
-        result.full_files = len({
-            item.metadata.get("file_path")
-            for item in assembled.items
-            if item.metadata.get("file_path")
-        })
+        result.full_files = len(
+            {
+                item.metadata.get("file_path")
+                for item in assembled.items
+                if item.metadata.get("file_path")
+            }
+        )
         result.decisions_surfaced = sum(
             1 for item in assembled.items if item.item_type == "decision"
         )
@@ -365,42 +371,50 @@ class BenchmarkRunner:
         # Core file (most nodes — likely a models or utils file)
         if len(files) >= 1:
             core_file = files[0][0]
-            scenarios.append(BenchmarkScenario(
-                name="Core module change",
-                task_description=f"Refactor the core module at {Path(core_file).name}",
-                target_files=[core_file],
-                expected_scope="wide",
-            ))
+            scenarios.append(
+                BenchmarkScenario(
+                    name="Core module change",
+                    task_description=f"Refactor the core module at {Path(core_file).name}",
+                    target_files=[core_file],
+                    expected_scope="wide",
+                )
+            )
 
         # Mid-level file
         mid_idx = len(files) // 3
         if len(files) > mid_idx:
             mid_file = files[mid_idx][0]
-            scenarios.append(BenchmarkScenario(
-                name="Feature module change",
-                task_description=f"Add a new endpoint to {Path(mid_file).name}",
-                target_files=[mid_file],
-                expected_scope="medium",
-            ))
+            scenarios.append(
+                BenchmarkScenario(
+                    name="Feature module change",
+                    task_description=f"Add a new endpoint to {Path(mid_file).name}",
+                    target_files=[mid_file],
+                    expected_scope="medium",
+                )
+            )
 
         # Leaf file (fewest nodes)
         if len(files) >= 3:
             leaf_file = files[-1][0]
-            scenarios.append(BenchmarkScenario(
-                name="Leaf file change",
-                task_description=f"Fix a bug in {Path(leaf_file).name}",
-                target_files=[leaf_file],
-                expected_scope="narrow",
-            ))
+            scenarios.append(
+                BenchmarkScenario(
+                    name="Leaf file change",
+                    task_description=f"Fix a bug in {Path(leaf_file).name}",
+                    target_files=[leaf_file],
+                    expected_scope="narrow",
+                )
+            )
 
         # Multi-file change
         if len(files) >= 5:
             multi_files = [files[0][0], files[len(files) // 2][0]]
-            scenarios.append(BenchmarkScenario(
-                name="Cross-module refactor",
-                task_description="Refactor shared types used across multiple modules",
-                target_files=multi_files,
-                expected_scope="wide",
-            ))
+            scenarios.append(
+                BenchmarkScenario(
+                    name="Cross-module refactor",
+                    task_description="Refactor shared types used across multiple modules",
+                    target_files=multi_files,
+                    expected_scope="wide",
+                )
+            )
 
         return scenarios

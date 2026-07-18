@@ -44,7 +44,7 @@ _LEVEL_TITLES = {
 def _mermaid_label(node: IntentNode) -> str:
     title = node.title.replace('"', "'").replace("[", "(").replace("]", ")")
     marker = {"active": "", "stale": " ⚠", "superseded": " ✕"}[node.status.value]
-    return f'{title}{marker}<br/><i>{node.trust.value}</i>'
+    return f"{title}{marker}<br/><i>{node.trust.value}</i>"
 
 
 class IntentRenderer:

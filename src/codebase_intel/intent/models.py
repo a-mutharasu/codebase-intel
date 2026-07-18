@@ -25,13 +25,12 @@ Three levels of intent:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class IntentStatus(str, Enum):
+class IntentStatus(StrEnum):
     """Lifecycle of an intent."""
 
     ACTIVE = "active"  # Currently being worked on
@@ -41,7 +40,7 @@ class IntentStatus(str, Enum):
     ABANDONED = "abandoned"  # User decided not to pursue
 
 
-class CriterionType(str, Enum):
+class CriterionType(StrEnum):
     """How to verify an acceptance criterion."""
 
     FILE_EXISTS = "file_exists"  # A file must exist at this path
@@ -164,7 +163,8 @@ class Intent(BaseModel):
         """Serialize for agent context — shows what's done and what's missing."""
         lines = [
             f"## Intent: {self.title} [{self.id}]",
-            f"Status: {self.status.value} | Progress: {self.criteria_met}/{self.criteria_total} ({self.completion_pct:.0f}%)",
+            f"Status: {self.status.value} | Progress: "
+            f"{self.criteria_met}/{self.criteria_total} ({self.completion_pct:.0f}%)",
         ]
 
         if self.description:

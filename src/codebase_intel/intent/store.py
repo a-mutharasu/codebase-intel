@@ -30,8 +30,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -41,6 +40,9 @@ from codebase_intel.intent.models import (
     Intent,
     IntentStatus,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -112,11 +114,15 @@ class IntentStore:
             return
 
         # Pydantic frozen model — reconstruct
-        updated = intent.model_copy(update={
-            "status": status,
-            "updated_at": datetime.now(UTC),
-            "verified_at": datetime.now(UTC) if status == IntentStatus.VERIFIED else intent.verified_at,
-        })
+        updated = intent.model_copy(
+            update={
+                "status": status,
+                "updated_at": datetime.now(UTC),
+                "verified_at": datetime.now(UTC)
+                if status == IntentStatus.VERIFIED
+                else intent.verified_at,
+            }
+        )
         self.save(updated)
 
     def update_criteria(self, intent_id: str, criteria: list[AcceptanceCriterion]) -> None:
@@ -125,10 +131,12 @@ class IntentStore:
         if not intent:
             return
 
-        updated = intent.model_copy(update={
-            "criteria": criteria,
-            "updated_at": datetime.now(UTC),
-        })
+        updated = intent.model_copy(
+            update={
+                "criteria": criteria,
+                "updated_at": datetime.now(UTC),
+            }
+        )
         self.save(updated)
 
     def next_id(self) -> str:

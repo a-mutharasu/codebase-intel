@@ -30,13 +30,12 @@ Edge cases (the hard ones):
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
-from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-# Re-exported name — token estimation moved to core.tokens so intentgraph can share it
-from codebase_intel.core.tokens import estimate_tokens
+from codebase_intel.core.tokens import estimate_tokens as estimate_tokens
 from codebase_intel.core.types import (
     AssembledContext,
     ContextItem,
@@ -45,9 +44,12 @@ from codebase_intel.core.types import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from codebase_intel.contracts.evaluator import ContractEvaluator
     from codebase_intel.contracts.registry import ContractRegistry
     from codebase_intel.core.config import OrchestratorConfig
+    from codebase_intel.core.types import GraphNode
     from codebase_intel.decisions.store import DecisionStore
     from codebase_intel.graph.query import GraphQueryEngine
 
@@ -122,7 +124,9 @@ class ContextAssembler:
             items.extend(decision_items)
         elif not self._decisions:
             missing.append("decisions")
-            context.warnings.append("Decision journal not available — architectural context missing")
+            context.warnings.append(
+                "Decision journal not available — architectural context missing"
+            )
 
         # 3. Gather contract context (pre-generation guidance)
         if self._contracts and file_paths:
@@ -172,9 +176,7 @@ class ContextAssembler:
             try:
                 # Estimate naive tokens (what reading all requested files would cost)
                 naive_tokens = self._estimate_naive_tokens(file_paths or [])
-                graph_tokens = sum(
-                    i.estimated_tokens for i in context.items if i.source == "graph"
-                )
+                graph_tokens = sum(i.estimated_tokens for i in context.items if i.source == "graph")
                 self._analytics.record_context_event(
                     task_description=task_description,
                     files_requested=len(file_paths or []),
@@ -184,9 +186,7 @@ class ContextAssembler:
                     budget_tokens=budget.usable,
                     items_included=len(context.items),
                     items_dropped=context.dropped_count,
-                    decisions_surfaced=sum(
-                        1 for i in context.items if i.item_type == "decision"
-                    ),
+                    decisions_surfaced=sum(1 for i in context.items if i.item_type == "decision"),
                     contracts_applied=sum(
                         1 for i in context.items if i.item_type == "contract_rule"
                     ),
@@ -213,10 +213,8 @@ class ContextAssembler:
             # Read the file itself
             if fp.exists() and fp not in seen:
                 seen.add(fp)
-                try:
+                with contextlib.suppress(OSError):
                     total_content += fp.read_text(encoding="utf-8", errors="ignore")
-                except OSError:
-                    pass
 
             # Read all siblings in the same directory (common agent behavior)
             if fp.parent.exists():
@@ -225,13 +223,14 @@ class ContextAssembler:
                         if (
                             sibling.is_file()
                             and sibling not in seen
-                            and sibling.suffix in (".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java")
+                            and sibling.suffix
+                            in (".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java")
                         ):
                             seen.add(sibling)
-                            try:
-                                total_content += sibling.read_text(encoding="utf-8", errors="ignore")
-                            except OSError:
-                                pass
+                            with contextlib.suppress(OSError):
+                                total_content += sibling.read_text(
+                                    encoding="utf-8", errors="ignore"
+                                )
                 except OSError:
                     pass
 
@@ -276,30 +275,34 @@ class ContextAssembler:
 
             if content:
                 tokens = estimate_tokens(content)
-                items.append(ContextItem(
-                    source="graph",
-                    item_type="file_content",
-                    priority=priority,
-                    estimated_tokens=tokens,
-                    content=content,
-                    metadata={
-                        "file_path": str(node.file_path),
-                        "node_kind": node.kind.value,
-                        "explanation": explanation,
-                    },
-                    freshness_score=1.0,  # Graph is always current
-                ))
+                items.append(
+                    ContextItem(
+                        source="graph",
+                        item_type="file_content",
+                        priority=priority,
+                        estimated_tokens=tokens,
+                        content=content,
+                        metadata={
+                            "file_path": str(node.file_path),
+                            "node_kind": node.kind.value,
+                            "explanation": explanation,
+                        },
+                        freshness_score=1.0,  # Graph is always current
+                    )
+                )
 
         # Add warnings from graph query
         for warning in result.warnings:
-            items.append(ContextItem(
-                source="graph",
-                item_type="warning",
-                priority=ContextPriority.HIGH,
-                estimated_tokens=estimate_tokens(warning),
-                content=warning,
-                freshness_score=1.0,
-            ))
+            items.append(
+                ContextItem(
+                    source="graph",
+                    item_type="warning",
+                    priority=ContextPriority.HIGH,
+                    estimated_tokens=estimate_tokens(warning),
+                    content=warning,
+                    freshness_score=1.0,
+                )
+            )
 
         return items
 
@@ -340,7 +343,9 @@ class ContextAssembler:
 
             # High-priority for active constraints
             if record.constraints and any(c.is_hard for c in record.constraints):
-                priority = max(priority, ContextPriority.HIGH, key=lambda p: list(ContextPriority).index(p))
+                priority = max(
+                    priority, ContextPriority.HIGH, key=lambda p: list(ContextPriority).index(p)
+                )
 
             # Compute freshness
             freshness = 1.0
@@ -348,6 +353,7 @@ class ContextAssembler:
                 freshness = 0.3
             elif record.last_validated:
                 from datetime import UTC, datetime
+
                 days_since = (datetime.now(UTC) - record.last_validated).days
                 freshness = max(0.2, 1.0 - (days_since / self._config.freshness_decay_days))
 
@@ -355,19 +361,21 @@ class ContextAssembler:
             content = record.to_context_string(verbose=verbose)
             tokens = estimate_tokens(content)
 
-            items.append(ContextItem(
-                source="decisions",
-                item_type="decision",
-                priority=priority,
-                estimated_tokens=tokens,
-                content=content,
-                metadata={
-                    "decision_id": record.id,
-                    "relevance": relevance,
-                    "status": record.status.value,
-                },
-                freshness_score=freshness,
-            ))
+            items.append(
+                ContextItem(
+                    source="decisions",
+                    item_type="decision",
+                    priority=priority,
+                    estimated_tokens=tokens,
+                    content=content,
+                    metadata={
+                        "decision_id": record.id,
+                        "relevance": relevance,
+                        "status": record.status.value,
+                    },
+                    freshness_score=freshness,
+                )
+            )
 
         return items
 
@@ -399,24 +407,25 @@ class ContextAssembler:
                 content = contract.to_context_string(verbose=True)
                 tokens = estimate_tokens(content)
 
-                # Contracts are guidance — always at least MEDIUM priority
+                # ContractSeverity has no 'critical' member, so the old escalation check could
+                # never fire; contracts stay MEDIUM until severity→priority mapping is designed.
                 priority = ContextPriority.MEDIUM
-                if any(r.severity == ContextPriority.CRITICAL for r in contract.rules):
-                    priority = ContextPriority.HIGH
 
-                items.append(ContextItem(
-                    source="contracts",
-                    item_type="contract_rule",
-                    priority=priority,
-                    estimated_tokens=tokens,
-                    content=content,
-                    metadata={
-                        "contract_id": contract.id,
-                        "rule_count": len(contract.rules),
-                        "priority": contract.priority,
-                    },
-                    freshness_score=1.0,  # Contracts are always current
-                ))
+                items.append(
+                    ContextItem(
+                        source="contracts",
+                        item_type="contract_rule",
+                        priority=priority,
+                        estimated_tokens=tokens,
+                        content=content,
+                        metadata={
+                            "contract_id": contract.id,
+                            "rule_count": len(contract.rules),
+                            "priority": contract.priority,
+                        },
+                        freshness_score=1.0,  # Contracts are always current
+                    )
+                )
 
         return items
 

@@ -22,19 +22,18 @@ Edge cases:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class ServiceStatus(str, Enum):
+class ServiceStatus(StrEnum):
     ACTIVE = "active"
     DEPRECATED = "deprecated"
     REMOVED = "removed"
 
 
-class ProtocolType(str, Enum):
+class ProtocolType(StrEnum):
     HTTP = "http"
     GRPC = "grpc"
     GRAPHQL = "graphql"
@@ -42,7 +41,7 @@ class ProtocolType(str, Enum):
     INTERNAL = "internal"  # Direct function call (monorepo)
 
 
-class HttpMethod(str, Enum):
+class HttpMethod(StrEnum):
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -51,7 +50,7 @@ class HttpMethod(str, Enum):
     ANY = "ANY"
 
 
-class ContractStatus(str, Enum):
+class ContractStatus(StrEnum):
     ACTIVE = "active"
     DEPRECATED = "deprecated"
     BREAKING_CHANGE = "breaking_change"
@@ -187,9 +186,7 @@ class CrossRepoImpact(BaseModel):
         for dep in self.affected_services:
             critical = " [CRITICAL]" if dep.is_critical else ""
             fallback = " (has fallback)" if dep.has_fallback else " (NO fallback)"
-            lines.append(
-                f"- **{dep.consumer_service}** calls this endpoint{critical}{fallback}"
-            )
+            lines.append(f"- **{dep.consumer_service}** calls this endpoint{critical}{fallback}")
             if dep.file_path:
                 lines.append(f"  at {dep.file_path}:{dep.line_number or '?'}")
 

@@ -18,8 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class Severity(Enum):
@@ -184,9 +186,7 @@ class CircularDependencyError(GraphError):
     severity = Severity.WARNING
     recovery = RecoveryHint.SKIP
 
-    def __init__(
-        self, cycle_path: list[str], context: ErrorContext | None = None
-    ) -> None:
+    def __init__(self, cycle_path: list[str], context: ErrorContext | None = None) -> None:
         self.cycle_path = cycle_path
         message = f"Circular dependency: {' → '.join(cycle_path)}"
         super().__init__(message, context)
@@ -379,10 +379,7 @@ class BudgetExceededError(OrchestratorError):
     ) -> None:
         self.budget_tokens = budget_tokens
         self.required_tokens = required_tokens
-        message = (
-            f"Context requires ~{required_tokens} tokens "
-            f"but budget is {budget_tokens}"
-        )
+        message = f"Context requires ~{required_tokens} tokens but budget is {budget_tokens}"
         super().__init__(message, context)
 
 
@@ -405,9 +402,7 @@ class PartialInitializationError(OrchestratorError):
     ) -> None:
         self.available = available
         self.missing = missing
-        message = (
-            f"Partial init — available: {available}, missing: {missing}"
-        )
+        message = f"Partial init — available: {available}, missing: {missing}"
         super().__init__(message, context)
 
 
@@ -448,7 +443,6 @@ class ContextRotError(DriftError):
         self.stale_records = stale_records
         self.total_records = total_records
         message = (
-            f"Context rot: {rot_percentage:.0%} of records stale "
-            f"({stale_records}/{total_records})"
+            f"Context rot: {rot_percentage:.0%} of records stale ({stale_records}/{total_records})"
         )
         super().__init__(message, context)

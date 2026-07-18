@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # ---------------------------------------------------------------------------
 
 
-class NodeKind(str, Enum):
+class NodeKind(StrEnum):
     """Types of nodes in the semantic code graph."""
 
     MODULE = "module"  # A file / compilation unit
@@ -44,7 +44,7 @@ class NodeKind(str, Enum):
     UNKNOWN = "unknown"  # Parsed but unclassifiable
 
 
-class EdgeKind(str, Enum):
+class EdgeKind(StrEnum):
     """Types of relationships between graph nodes."""
 
     IMPORTS = "imports"  # Static import
@@ -61,7 +61,7 @@ class EdgeKind(str, Enum):
     RE_EXPORTS = "re_exports"  # Barrel file re-exporting
 
 
-class Language(str, Enum):
+class Language(StrEnum):
     """Supported source languages — 19 languages via tree-sitter-language-pack."""
 
     PYTHON = "python"
@@ -86,7 +86,7 @@ class Language(str, Enum):
     UNKNOWN = "unknown"  # tracked in graph but not parsed internally
 
 
-class DecisionStatus(str, Enum):
+class DecisionStatus(StrEnum):
     """Lifecycle of a decision record."""
 
     DRAFT = "draft"  # Not yet finalized
@@ -96,7 +96,7 @@ class DecisionStatus(str, Enum):
     EXPIRED = "expired"  # Past its review date
 
 
-class ContractSeverity(str, Enum):
+class ContractSeverity(StrEnum):
     """How strictly a contract rule is enforced."""
 
     ERROR = "error"  # Must not violate — blocks generation
@@ -104,7 +104,7 @@ class ContractSeverity(str, Enum):
     INFO = "info"  # Nice to know — lowest priority context
 
 
-class DriftLevel(str, Enum):
+class DriftLevel(StrEnum):
     """Severity of detected drift."""
 
     NONE = "none"
@@ -258,9 +258,7 @@ class GraphNode(BaseModel):
     node_id: str = Field(description="Stable ID: hash of (path, kind, name)")
     kind: NodeKind
     name: str
-    qualified_name: str = Field(
-        description="Full path: module.Class.method"
-    )
+    qualified_name: str = Field(description="Full path: module.Class.method")
     file_path: Path
     line_range: LineRange | None = None
     language: Language = Language.UNKNOWN
@@ -314,7 +312,7 @@ class GraphEdge(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ContextPriority(str, Enum):
+class ContextPriority(StrEnum):
     """Priority levels for context items during budget allocation."""
 
     CRITICAL = "critical"  # Must include — directly referenced files

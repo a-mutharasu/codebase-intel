@@ -368,9 +368,7 @@ class TestDetectContradictions:
             freshness_score=1.0,
             metadata={"contract_id": "auth-rules"},
         )
-        contradictions = assembler._detect_contradictions(
-            [stale_decision, active_contract]
-        )
+        contradictions = assembler._detect_contradictions([stale_decision, active_contract])
         assert len(contradictions) == 1
         assert "DEC-001" in contradictions[0]
         assert "auth-rules" in contradictions[0]
@@ -389,9 +387,7 @@ class TestDetectContradictions:
             freshness_score=1.0,
             metadata={"contract_id": "core-rules"},
         )
-        contradictions = assembler._detect_contradictions(
-            [fresh_decision, contract]
-        )
+        contradictions = assembler._detect_contradictions([fresh_decision, contract])
         assert contradictions == []
 
     def test_stale_decision_without_contract_no_flag(self) -> None:
@@ -436,9 +432,7 @@ class TestDetectContradictions:
             freshness_score=1.0,
             metadata={"contract_id": "rules"},
         )
-        contradictions = assembler._detect_contradictions(
-            [stale_no_file, contract]
-        )
+        contradictions = assembler._detect_contradictions([stale_no_file, contract])
         # decision_file is empty string which is falsy, so no contradiction flagged
         assert contradictions == []
 

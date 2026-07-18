@@ -11,7 +11,7 @@
 | T-005 | Phase 3 — honesty machinery (anchor repair, staleness, conflicts, coverage) | done | 2026-07-17 |
 | T-006 | Phase 4 — eval harness: token + correctness A/B on real repos | pending | 2026-07-17 |
 | T-007 | Phase 5 — human projection + review promotion | done | 2026-07-17 |
-| T-008 | Chore — pre-existing lint/type/coverage baseline debt | pending | 2026-07-17 |
+| T-008 | Chore — pre-existing v1 test coverage debt (ruff/mypy portion done) | in-progress | 2026-07-18 |
 
 ---
 
@@ -26,19 +26,38 @@ Verify:   Published A/B numbers (bootstrap vs file-reading) on real repos vs v1 
 
 Decisions: (none yet)
 
-### T-008 · Chore: pre-existing lint/type/coverage baseline debt
-Status:   pending
-Touched:  2026-07-17
+### T-008 · Chore: pre-existing v1 test coverage debt
+Status:   in-progress
+Owner:    2026-07-18a
+Touched:  2026-07-18
 
 Purpose:  Discovered during T-002 verification: `ruff check src/ tests/` = 222 pre-existing
           errors (newer ruff than v1 was written against), `mypy src/` = 33 pre-existing
           errors in 15 files, and the pytest 90% coverage gate fails at 42% project-wide
           (mcp/server 6%, graph/query 0%, intent/ 0%). New intentgraph module is clean
           (ruff+mypy) and 93–97% covered — the debt is all v1 code.
-Impact:   Whole repo; until fixed, "pytest" exits non-zero on the coverage gate.
-Verify:   ruff/mypy clean on src/, coverage gate passes (or gate consciously re-scoped).
+Impact:   Whole repo; until coverage is addressed, `pytest` (with its default addopts)
+          exits non-zero on the 90% coverage gate even though every test passes.
+Verify:   ruff/mypy clean on src/ (DONE — see decisions below); coverage gate passes,
+          or is consciously re-scoped (still open).
 
-Decisions: (none yet)
+Decisions:
+  - 2026-07-18: ruff (222→0 errors) and mypy (33→0 errors) fully resolved on
+    branch chore/v1-lint-type-debt. Fixes: E501 line wraps across ~15 files;
+    real bugs — loop-variable retyping collisions in decisions/models.py and
+    mcp/server.py (`c`/`all_contracts` reused across two different element types
+    in the same function scope, which is what mypy's strict re-check caught);
+    S110 bare except→pass now log; S602 shell=True on user-authored check
+    commands justified inline (intent/verifier.py); ASYNC221 fixed via
+    asyncio.to_thread; S608 f-string SQL confirmed internal-only, justified;
+    added types-PyYAML dev dep; mcp package's list_tools/call_tool decorators
+    lack type stubs — two narrow `type: ignore[...]` with inline justification,
+    unavoidable without vendoring stubs for a third-party package.
+  - 2026-07-18: Coverage gate (45% vs 90% required) is a SEPARATE, much larger
+    scope — writing unit tests for untested v1 modules (mcp/server.py 5%,
+    graph/query.py 0%, intent/*.py 0%, crossrepo/*.py 0%, decisions/miner.py 0%).
+    Not attempted in this pass; verified via `pytest --no-cov` instead. Left
+    in-progress rather than pending since ruff+mypy (2 of 3 verify legs) are done.
 
 ---
 

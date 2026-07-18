@@ -38,6 +38,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+# stdout is the MCP stdio transport when serving — status noise must go to stderr instead
+stderr_console = Console(stderr=True)
+logger = logging.getLogger(__name__)
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -74,10 +77,12 @@ def init(
         console.print(f"[red]Not a directory: {project_root}[/red]")
         raise typer.Exit(1)
 
-    console.print(Panel(
-        f"Initializing codebase-intel for [bold]{project_root.name}[/bold]",
-        title="codebase-intel init",
-    ))
+    console.print(
+        Panel(
+            f"Initializing codebase-intel for [bold]{project_root.name}[/bold]",
+            title="codebase-intel init",
+        )
+    )
 
     asyncio.run(_init_async(project_root, verbose))
 
@@ -91,6 +96,7 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
 
     # Save default config
     import yaml
+
     config_file = project_root / ".codebase-intel" / "config.yaml"
     if not config_file.exists():
         config_file.write_text(
@@ -101,6 +107,7 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
 
     # Create starter contract template
     from codebase_intel.contracts.registry import ContractRegistry
+
     registry = ContractRegistry(config.contracts, project_root)
     template_path = await registry.create_template(
         "project-rules", f"{project_root.name} Quality Rules"
@@ -146,6 +153,7 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
     # Mine git history for decisions
     try:
         from codebase_intel.decisions.miner import GitMiner
+
         miner = GitMiner(config.decisions, project_root)
         candidates = await miner.mine_commits(max_commits=200)
         if candidates:
@@ -154,11 +162,11 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
             )
             console.print("  Run `codebase-intel mine` to review and save them.")
     except Exception:
-        pass  # Git mining is best-effort
+        # Mining is best-effort during init — a missing or odd git repo must not block setup
+        logger.debug("Git decision mining skipped", exc_info=True)
 
     console.print(
-        "\n[green]Initialization complete![/green] "
-        "The MCP server is ready: `codebase-intel serve`"
+        "\n[green]Initialization complete![/green] The MCP server is ready: `codebase-intel serve`"
     )
 
 
@@ -170,7 +178,9 @@ async def _init_async(project_root: Path, verbose: bool) -> None:
 @app.command()
 def analyze(
     path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
-    incremental: bool = typer.Option(False, "--incremental", "-i", help="Only re-parse changed files"),
+    incremental: bool = typer.Option(
+        False, "--incremental", "-i", help="Only re-parse changed files"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Build or update the code graph."""
@@ -254,10 +264,12 @@ async def _drift_async(project_root: Path) -> None:
     }
 
     color = level_colors.get(report.overall_level.value, "white")
-    console.print(Panel(
-        f"Overall: [{color}]{report.overall_level.value.upper()}[/{color}]\n{report.summary}",
-        title="Drift Report",
-    ))
+    console.print(
+        Panel(
+            f"Overall: [{color}]{report.overall_level.value.upper()}[/{color}]\n{report.summary}",
+            title="Drift Report",
+        )
+    )
 
     if report.items:
         table = Table(title="Drift Items")
@@ -296,7 +308,9 @@ async def _drift_async(project_root: Path) -> None:
 def mine(
     path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
     max_commits: int = typer.Option(200, "--max", "-m", help="Max commits to scan"),
-    save: bool = typer.Option(False, "--save", "-s", help="Auto-save candidates as draft decisions"),
+    save: bool = typer.Option(
+        False, "--save", "-s", help="Auto-save candidates as draft decisions"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Mine git history for decision candidates."""
@@ -350,7 +364,10 @@ async def _mine_async(project_root: Path, max_commits: int, save: bool) -> None:
             record = candidate.to_decision_record(decision_id)
             await store.save(record)
             saved += 1
-        console.print(f"\n[green]Saved {saved} draft decisions.[/green] Review them in .codebase-intel/decisions/")
+        console.print(
+            f"\n[green]Saved {saved} draft decisions.[/green] "
+            "Review them in .codebase-intel/decisions/"
+        )
     else:
         console.print("\nRun with `--save` to save these as draft decisions.")
 
@@ -389,10 +406,12 @@ async def _detect_patterns_async(project_root: Path, save: bool) -> None:
         console.print("[yellow]No strong patterns detected (need 70%+ consistency).[/yellow]")
         return
 
-    console.print(Panel(
-        f"Found [bold]{len(patterns)}[/bold] consistent patterns in your codebase",
-        title="Auto-Detected Patterns",
-    ))
+    console.print(
+        Panel(
+            f"Found [bold]{len(patterns)}[/bold] consistent patterns in your codebase",
+            title="Auto-Detected Patterns",
+        )
+    )
 
     table = Table()
     table.add_column("#", style="dim")
@@ -416,6 +435,7 @@ async def _detect_patterns_async(project_root: Path, save: bool) -> None:
     if save:
         contract = generator.generate_contract(patterns)
         import yaml
+
         contracts_dir = project_root / ".codebase-intel" / "contracts"
         contracts_dir.mkdir(parents=True, exist_ok=True)
         out_path = contracts_dir / "auto-detected.yaml"
@@ -441,7 +461,9 @@ def crossrepo(
         list[Path] | None,
         typer.Argument(help="Paths to service repos (space-separated). Omit with --all."),
     ] = None,
-    all_registered: bool = typer.Option(False, "--all", "-A", help="Scan all globally registered projects"),
+    all_registered: bool = typer.Option(
+        False, "--all", "-A", help="Scan all globally registered projects"
+    ),
     impact: str = typer.Option("", "--impact", "-i", help="Service ID to check impact for"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -487,7 +509,9 @@ def crossrepo(
         ) as progress:
             task = progress.add_task(f"Scanning {resolved.name}...", total=None)
             result = registry.register_service(resolved)
-            progress.update(task, description=f"Done: {result.to_dict()['endpoints']} endpoints", completed=True)
+            progress.update(
+                task, description=f"Done: {result.to_dict()['endpoints']} endpoints", completed=True
+            )
 
     # Resolve dependencies
     console.print()
@@ -519,17 +543,27 @@ def crossrepo(
         if impacts:
             console.print()
             for imp in impacts:
-                risk_color = {"critical": "bold red", "high": "red", "medium": "yellow", "low": "green"}.get(imp.risk_level, "white")
-                console.print(Panel(
-                    f"Endpoint: [bold]{imp.changed_endpoint}[/bold]\n"
-                    f"Risk: [{risk_color}]{imp.risk_level.upper()}[/{risk_color}] — "
-                    f"{imp.affected_count} services affected\n\n"
-                    f"{imp.recommendation}",
-                    title=f"Impact: {impact}",
-                ))
+                risk_color = {
+                    "critical": "bold red",
+                    "high": "red",
+                    "medium": "yellow",
+                    "low": "green",
+                }.get(imp.risk_level, "white")
+                console.print(
+                    Panel(
+                        f"Endpoint: [bold]{imp.changed_endpoint}[/bold]\n"
+                        f"Risk: [{risk_color}]{imp.risk_level.upper()}[/{risk_color}] — "
+                        f"{imp.affected_count} services affected\n\n"
+                        f"{imp.recommendation}",
+                        title=f"Impact: {impact}",
+                    )
+                )
                 for dep in imp.affected_services:
                     critical = " [red][CRITICAL][/red]" if dep.is_critical else ""
-                    console.print(f"  → {dep.consumer_service}{critical} at {dep.file_path}:{dep.line_number or '?'}")
+                    console.print(
+                        f"  → {dep.consumer_service}{critical} at "
+                        f"{dep.file_path}:{dep.line_number or '?'}"
+                    )
         else:
             console.print(f"[green]No cross-service impact found for {impact}[/green]")
 
@@ -546,7 +580,9 @@ def crossrepo(
 @app.command()
 def serve(
     path: Annotated[Path | None, typer.Argument(help="Project root (omit for --auto mode)")] = None,
-    auto: bool = typer.Option(False, "--auto", "-a", help="Workspace-aware mode: serve all registered projects"),
+    auto: bool = typer.Option(
+        False, "--auto", "-a", help="Workspace-aware mode: serve all registered projects"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Start the MCP server (stdio transport).
@@ -565,11 +601,11 @@ def serve(
     from codebase_intel.mcp.server import run_server
 
     if auto:
-        console.print("[dim]Starting MCP server in workspace-aware mode...[/dim]", err=True)
+        stderr_console.print("[dim]Starting MCP server in workspace-aware mode...[/dim]")
         asyncio.run(run_server(auto_mode=True))
     else:
         project_root = (path or Path(".")).resolve()
-        console.print(f"[dim]Starting MCP server for {project_root.name}...[/dim]", err=True)
+        stderr_console.print(f"[dim]Starting MCP server for {project_root.name}...[/dim]")
         asyncio.run(run_server(project_root))
 
 
@@ -582,7 +618,9 @@ def serve(
 def register(
     path: Annotated[Path, typer.Argument(help="Project root to register")] = Path("."),
     name: str | None = typer.Option(None, "--name", "-n", help="Display name for the project"),
-    project_id: str | None = typer.Option(None, "--id", help="Custom project ID (default: directory name)"),
+    project_id: str | None = typer.Option(
+        None, "--id", help="Custom project ID (default: directory name)"
+    ),
 ) -> None:
     """Register a project in the global registry.
 
@@ -604,16 +642,16 @@ def register(
 
     entry = registry.register(resolved, project_id=project_id, name=name)
 
-    init_status = "[green]initialized[/green]" if entry.initialized else "[yellow]not initialized[/yellow]"
+    init_status = (
+        "[green]initialized[/green]" if entry.initialized else "[yellow]not initialized[/yellow]"
+    )
     console.print(
         f"[green]Registered[/green] [bold]{entry.project_id}[/bold] "
         f"→ {entry.root_path} ({init_status})"
     )
 
     if not entry.initialized:
-        console.print(
-            f"[dim]Run `codebase-intel init {resolved}` to build the code graph.[/dim]"
-        )
+        console.print(f"[dim]Run `codebase-intel init {resolved}` to build the code graph.[/dim]")
 
 
 @app.command()
@@ -658,9 +696,7 @@ def projects() -> None:
         status = "[green]OK[/green]" if exists else "[red]MISSING[/red]"
         init_status = "[green]Yes[/green]" if entry.initialized else "[yellow]No[/yellow]"
         last_accessed = (
-            entry.last_accessed.strftime("%Y-%m-%d %H:%M")
-            if entry.last_accessed
-            else "—"
+            entry.last_accessed.strftime("%Y-%m-%d %H:%M") if entry.last_accessed else "—"
         )
 
         table.add_row(
@@ -673,8 +709,10 @@ def projects() -> None:
         )
 
     console.print(table)
-    console.print(f"\n[dim]{len(all_projects)} project(s) registered. "
-                  f"Use `codebase-intel serve --auto` to serve all.[/dim]")
+    console.print(
+        f"\n[dim]{len(all_projects)} project(s) registered. "
+        f"Use `codebase-intel serve --auto` to serve all.[/dim]"
+    )
 
 
 # -------------------------------------------------------------------
@@ -685,7 +723,9 @@ def projects() -> None:
 @app.command()
 def intent(
     path: Annotated[Path, typer.Argument(help="Project root")] = Path("."),
-    verify: bool = typer.Option(False, "--verify", "-v", help="Run verification on all active intents"),
+    verify: bool = typer.Option(
+        False, "--verify", "-v", help="Run verification on all active intents"
+    ),
 ) -> None:
     """Show and verify tracked intents — what was requested vs what's delivered."""
     asyncio.run(_intent_async(path.resolve(), verify))
@@ -717,10 +757,14 @@ async def _intent_async(project_root: Path, verify: bool) -> None:
             # Update stored state
             updated_criteria = []
             for r in report.results:
-                updated_criteria.append(r.criterion.model_copy(update={
-                    "verified": r.passed,
-                    "failure_reason": r.failure_reason,
-                }))
+                updated_criteria.append(
+                    r.criterion.model_copy(
+                        update={
+                            "verified": r.passed,
+                            "failure_reason": r.failure_reason,
+                        }
+                    )
+                )
             store.update_criteria(intent_obj.id, updated_criteria)
             store.update_status(intent_obj.id, report.status)
 
@@ -732,12 +776,14 @@ async def _intent_async(project_root: Path, verify: bool) -> None:
                 "active": "cyan",
             }.get(report.status.value, "white")
 
-            console.print(Panel(
-                f"[bold]{intent_obj.title}[/bold]\n"
-                f"Status: [{status_color}]{report.status.value.upper()}[/{status_color}] — "
-                f"{report.passed_count}/{report.total} criteria met",
-                title=f"Intent {intent_obj.id}",
-            ))
+            console.print(
+                Panel(
+                    f"[bold]{intent_obj.title}[/bold]\n"
+                    f"Status: [{status_color}]{report.status.value.upper()}[/{status_color}] — "
+                    f"{report.passed_count}/{report.total} criteria met",
+                    title=f"Intent {intent_obj.id}",
+                )
+            )
 
             for r in report.results:
                 icon = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
@@ -862,12 +908,14 @@ async def _benchmark_async(project_root: Path) -> None:
 
     # Display results
     console.print()
-    console.print(Panel(
-        f"[bold]{report.repo_name}[/bold]\n"
-        f"{report.total_files} files | {report.total_nodes} nodes | "
-        f"{report.total_edges} edges | Built in {report.build_time_ms:.0f}ms",
-        title="Benchmark Results",
-    ))
+    console.print(
+        Panel(
+            f"[bold]{report.repo_name}[/bold]\n"
+            f"{report.total_files} files | {report.total_nodes} nodes | "
+            f"{report.total_edges} edges | Built in {report.build_time_ms:.0f}ms",
+            title="Benchmark Results",
+        )
+    )
 
     table = Table(title="Token Efficiency — Before vs After")
     table.add_column("Scenario", style="bold")
@@ -894,7 +942,9 @@ async def _benchmark_async(project_root: Path) -> None:
     # Average row
     table.add_row(
         "[bold]Average[/bold]",
-        "", "", "",
+        "",
+        "",
+        "",
         f"[bold]{report.avg_reduction_pct:.0f}%[/bold]",
         f"[bold]{report.avg_multiplier:.1f}x[/bold]",
         f"[bold]{report.total_decisions_surfaced}[/bold]",
@@ -907,11 +957,13 @@ async def _benchmark_async(project_root: Path) -> None:
     console.print()
     console.print("[bold]What this means:[/bold]")
     console.print(
-        f"  Without codebase-intel: agent reads [red]{report.scenarios[0].naive_tokens:,}[/red] tokens "
+        f"  Without codebase-intel: agent reads "
+        f"[red]{report.scenarios[0].naive_tokens:,}[/red] tokens "
         f"(every file in the directory)"
     ) if report.scenarios else None
     console.print(
-        f"  With codebase-intel:    agent reads [green]{report.scenarios[0].full_tokens:,}[/green] tokens "
+        f"  With codebase-intel:    agent reads "
+        f"[green]{report.scenarios[0].full_tokens:,}[/green] tokens "
         f"(only what matters + decisions + contracts)"
     ) if report.scenarios else None
     if report.total_decisions_surfaced > 0:
@@ -957,10 +1009,12 @@ def dashboard(
 
     # --- Header ---
     console.print()
-    console.print(Panel(
-        f"[bold]codebase-intel Dashboard[/bold] — {project_root.name}",
-        subtitle="Live efficiency tracking",
-    ))
+    console.print(
+        Panel(
+            f"[bold]codebase-intel Dashboard[/bold] — {project_root.name}",
+            subtitle="Live efficiency tracking",
+        )
+    )
 
     # --- Before/After ---
     if comparison.get("has_data"):
@@ -1210,9 +1264,7 @@ def intent_check(
         journal = IntentJournal(config.intentgraph.journal_dir)
         async with IntentGraphStore.open(config.intentgraph.db_path) as store:
             await store.materialize(journal)
-            report = await AnchorRepairer(journal, store).validate_and_repair(
-                config.project_root
-            )
+            report = await AnchorRepairer(journal, store).validate_and_repair(config.project_root)
             conflicts = await find_conflicts(store)
             health = await coverage_report(store)
 

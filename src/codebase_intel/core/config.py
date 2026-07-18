@@ -247,15 +247,9 @@ class ProjectConfig(BaseSettings):
 
         # Mutate nested configs (Pydantic v2 allows this in validators)
         object.__setattr__(self.graph, "db_path", _resolve(self.graph.db_path))
-        object.__setattr__(
-            self.decisions, "decisions_dir", _resolve(self.decisions.decisions_dir)
-        )
-        object.__setattr__(
-            self.contracts, "contracts_dir", _resolve(self.contracts.contracts_dir)
-        )
-        object.__setattr__(
-            self.intentgraph, "journal_dir", _resolve(self.intentgraph.journal_dir)
-        )
+        object.__setattr__(self.decisions, "decisions_dir", _resolve(self.decisions.decisions_dir))
+        object.__setattr__(self.contracts, "contracts_dir", _resolve(self.contracts.contracts_dir))
+        object.__setattr__(self.intentgraph, "journal_dir", _resolve(self.intentgraph.journal_dir))
         object.__setattr__(self.intentgraph, "db_path", _resolve(self.intentgraph.db_path))
         return self
 

@@ -11,7 +11,6 @@ Edge cases:
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
@@ -29,6 +28,8 @@ from codebase_intel.core.exceptions import ContractParseError, ErrorContext
 from codebase_intel.core.types import ContractSeverity, Language
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from codebase_intel.core.config import ContractConfig
 
 logger = logging.getLogger(__name__)
@@ -72,9 +73,7 @@ class ContractRegistry:
                         )
                     self._contracts[contract.id] = contract
                 except Exception as exc:
-                    logger.warning(
-                        "Failed to load contract %s: %s", yaml_file, exc
-                    )
+                    logger.warning("Failed to load contract %s: %s", yaml_file, exc)
 
         self._loaded = True
         logger.info(
@@ -100,14 +99,13 @@ class ContractRegistry:
             self.load()
         return self._contracts.get(contract_id)
 
-    def get_for_file(self, file_path: Path, language: Language = Language.UNKNOWN) -> list[QualityContract]:
+    def get_for_file(
+        self, file_path: Path, language: Language = Language.UNKNOWN
+    ) -> list[QualityContract]:
         """Get all contracts applicable to a specific file."""
         if not self._loaded:
             self.load()
-        return [
-            c for c in self._contracts.values()
-            if c.scope.matches(file_path, language)
-        ]
+        return [c for c in self._contracts.values() if c.scope.matches(file_path, language)]
 
     def _get_builtins(self) -> list[QualityContract]:
         """Get all built-in contract definitions."""
@@ -161,8 +159,8 @@ class ContractRegistry:
             # Convert string language names to Language enum
             if "languages" in scope_data:
                 scope_data["languages"] = [
-                    Language(l) if isinstance(l, str) else l
-                    for l in scope_data["languages"]
+                    Language(lang) if isinstance(lang, str) else lang
+                    for lang in scope_data["languages"]
                 ]
             data["scope"] = ScopeFilter(**scope_data)
 

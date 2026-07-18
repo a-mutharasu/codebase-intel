@@ -106,9 +106,7 @@ class TestEvaluatePatternRule:
             pattern=r"TODO|FIXME",
         )
         content = "x = 1  # TODO: fix this\ny = 2\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert len(violations) == 1
         assert violations[0].line == 1
         assert violations[0].matched_text == "TODO"
@@ -117,45 +115,35 @@ class TestEvaluatePatternRule:
         evaluator = _make_evaluator()
         rule = _make_rule(kind=RuleKind.PATTERN, pattern=r"HACK")
         content = "clean_code = True\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert violations == []
 
     def test_comment_lines_are_skipped(self, tmp_path: Path) -> None:
         evaluator = _make_evaluator()
         rule = _make_rule(kind=RuleKind.PATTERN, pattern=r"TODO")
         content = "# TODO: this is a comment\nreal_code = 1\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert violations == []
 
     def test_js_comment_lines_are_skipped(self, tmp_path: Path) -> None:
         evaluator = _make_evaluator()
         rule = _make_rule(kind=RuleKind.PATTERN, pattern=r"TODO")
         content = "// TODO: js comment\nlet x = 1;\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.js", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.js", content)
         assert violations == []
 
     def test_block_comment_lines_are_skipped(self, tmp_path: Path) -> None:
         evaluator = _make_evaluator()
         rule = _make_rule(kind=RuleKind.PATTERN, pattern=r"TODO")
         content = "/* TODO: block comment */\n* TODO: continuation\ncode();\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.js", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.js", content)
         assert violations == []
 
     def test_multiple_matches_on_different_lines(self, tmp_path: Path) -> None:
         evaluator = _make_evaluator()
         rule = _make_rule(kind=RuleKind.PATTERN, pattern=r"FIXME")
         content = "a = FIXME\nb = ok\nc = FIXME\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert len(violations) == 2
         assert violations[0].line == 1
         assert violations[1].line == 3
@@ -169,9 +157,7 @@ class TestEvaluatePatternRule:
             anti_pattern=r"Copyright \d{4}",
         )
         content = "def main():\n    pass\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert len(violations) == 1
         assert "Required pattern not found" in violations[0].message
 
@@ -183,9 +169,7 @@ class TestEvaluatePatternRule:
             anti_pattern=r"Copyright \d{4}",
         )
         content = "# Copyright 2024\ndef main():\n    pass\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert violations == []
 
     def test_both_pattern_and_anti_pattern(self, tmp_path: Path) -> None:
@@ -196,9 +180,7 @@ class TestEvaluatePatternRule:
             anti_pattern=r"# nosec",
         )
         content = "result = eval('expr')\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         # One from pattern match, one from missing anti_pattern
         assert len(violations) == 2
 
@@ -214,9 +196,7 @@ class TestEvaluatePatternRule:
             migration_deadline=past,
         )
         content = "old_api()\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert len(violations) == 1
         assert violations[0].severity == ContractSeverity.ERROR
 
@@ -490,9 +470,7 @@ class TestDetectConflicts:
 
     def test_no_threshold_rules_no_conflicts(self) -> None:
         evaluator = _make_evaluator()
-        contract = _make_contract(
-            rules=[_make_rule(kind=RuleKind.PATTERN, pattern=r"TODO")]
-        )
+        contract = _make_contract(rules=[_make_rule(kind=RuleKind.PATTERN, pattern=r"TODO")])
         conflicts = evaluator._detect_conflicts([contract], [])
         assert conflicts == []
 
@@ -619,9 +597,7 @@ class TestInvalidRegex:
             pattern=r"[invalid((",  # broken regex
         )
         content = "some code\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert violations == []
 
     def test_invalid_anti_pattern_skipped(self, tmp_path: Path) -> None:
@@ -632,9 +608,7 @@ class TestInvalidRegex:
             anti_pattern=r"[broken((",
         )
         content = "some code\n"
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "foo.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "foo.py", content)
         assert violations == []
 
     def test_compiled_pattern_cached(self, tmp_path: Path) -> None:
@@ -653,9 +627,7 @@ class TestInvalidRegex:
         evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "a.py", content)
         assert evaluator._compiled_patterns.get(rule.id) is None
         # Second invocation still does not crash
-        violations = evaluator._evaluate_pattern_rule(
-            rule, "ctr", tmp_path / "b.py", content
-        )
+        violations = evaluator._evaluate_pattern_rule(rule, "ctr", tmp_path / "b.py", content)
         assert violations == []
 
 

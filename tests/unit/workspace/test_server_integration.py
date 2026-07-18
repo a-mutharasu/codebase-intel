@@ -29,10 +29,12 @@ class TestExtractFileHint:
 
     def test_priority_file_path_over_files(self) -> None:
         """file_path takes priority over files array."""
-        result = _extract_file_hint({
-            "file_path": "/direct.py",
-            "files": ["/array.py"],
-        })
+        result = _extract_file_hint(
+            {
+                "file_path": "/direct.py",
+                "files": ["/array.py"],
+            }
+        )
         assert result == "/direct.py"
 
     def test_task_only_no_hint(self) -> None:

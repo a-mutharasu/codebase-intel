@@ -118,7 +118,8 @@ class IntentVerificationReport:
         """For agent context — shows exactly what passed and what didn't."""
         lines = [
             f"## Verification: {self.intent_title} [{self.intent_id}]",
-            f"Result: **{self.status.value.upper()}** — {self.passed_count}/{self.total} criteria met",
+            f"Result: **{self.status.value.upper()}** — "
+            f"{self.passed_count}/{self.total} criteria met",
             "",
         ]
 
@@ -214,7 +215,9 @@ class IntentVerifier:
         """Check if a function/class exists by grepping the source."""
         pattern = rf"(def|class|function|async def)\s+{re.escape(c.check_value)}\b"
         for py_file in self._project_root.rglob("*.py"):
-            if any(skip in str(py_file) for skip in ("node_modules", ".venv", "__pycache__", ".git")):
+            if any(
+                skip in str(py_file) for skip in ("node_modules", ".venv", "__pycache__", ".git")
+            ):
                 continue
             try:
                 content = py_file.read_text(encoding="utf-8", errors="ignore")
@@ -222,7 +225,9 @@ class IntentVerifier:
                     return VerificationResult(c, True)
             except OSError:
                 continue
-        return VerificationResult(c, False, f"Function/class '{c.check_value}' not found in codebase")
+        return VerificationResult(
+            c, False, f"Function/class '{c.check_value}' not found in codebase"
+        )
 
     async def _check_wired(self, c: AcceptanceCriterion) -> VerificationResult:
         """check_value format: 'module_a -> module_b'
@@ -237,7 +242,9 @@ class IntentVerifier:
 
         # Find source files matching module_a
         for py_file in self._project_root.rglob("*.py"):
-            if any(skip in str(py_file) for skip in ("node_modules", ".venv", "__pycache__", ".git")):
+            if any(
+                skip in str(py_file) for skip in ("node_modules", ".venv", "__pycache__", ".git")
+            ):
                 continue
             if source_name in str(py_file):
                 try:
@@ -251,20 +258,25 @@ class IntentVerifier:
                     continue
 
         return VerificationResult(
-            c, False,
-            f"'{source_name}' does not import or reference '{target_name}'"
+            c, False, f"'{source_name}' does not import or reference '{target_name}'"
+        )
+
+    def _run_shell(self, command: str, timeout: int) -> subprocess.CompletedProcess[bytes]:
+        """Run a user-defined check command in a shell, capturing output."""
+        # shell=True required: check commands are user-authored trusted config, not external input
+        return subprocess.run(  # noqa: S602
+            command,
+            shell=True,
+            capture_output=True,
+            timeout=timeout,
+            cwd=str(self._project_root),
         )
 
     async def _check_cli_works(self, c: AcceptanceCriterion) -> VerificationResult:
         """Run a CLI command and check it exits with code 0."""
         try:
-            result = subprocess.run(
-                c.check_value,
-                shell=True,  # noqa: S602
-                capture_output=True,
-                timeout=30,
-                cwd=str(self._project_root),
-            )
+            # to_thread keeps the event loop responsive while the blocking subprocess runs
+            result = await asyncio.to_thread(self._run_shell, c.check_value, 30)
             if result.returncode == 0:
                 return VerificationResult(c, True)
             stderr = result.stderr.decode("utf-8", errors="ignore")[:200]
@@ -299,7 +311,9 @@ class IntentVerifier:
         path_glob = parts[1].strip() if len(parts) > 1 else "**/*.py"
 
         for f in self._project_root.glob(path_glob):
-            if f.is_file() and not any(skip in str(f) for skip in (".git", "__pycache__", "node_modules", ".venv")):
+            if f.is_file() and not any(
+                skip in str(f) for skip in (".git", "__pycache__", "node_modules", ".venv")
+            ):
                 try:
                     content = f.read_text(encoding="utf-8", errors="ignore")
                     if re.search(pattern, content):
@@ -316,7 +330,9 @@ class IntentVerifier:
         path_glob = parts[1].strip() if len(parts) > 1 else "**/*.py"
 
         for f in self._project_root.glob(path_glob):
-            if f.is_file() and not any(skip in str(f) for skip in (".git", "__pycache__", "node_modules", ".venv")):
+            if f.is_file() and not any(
+                skip in str(f) for skip in (".git", "__pycache__", "node_modules", ".venv")
+            ):
                 try:
                     content = f.read_text(encoding="utf-8", errors="ignore")
                     if re.search(pattern, content):
@@ -331,12 +347,8 @@ class IntentVerifier:
     async def _check_test_passes(self, c: AcceptanceCriterion) -> VerificationResult:
         """Run a specific test and check it passes."""
         try:
-            result = subprocess.run(
-                f"python -m pytest {c.check_value} -x -q --no-header",
-                shell=True,  # noqa: S602
-                capture_output=True,
-                timeout=60,
-                cwd=str(self._project_root),
+            result = await asyncio.to_thread(
+                self._run_shell, f"python -m pytest {c.check_value} -x -q --no-header", 60
             )
             if result.returncode == 0:
                 return VerificationResult(c, True)

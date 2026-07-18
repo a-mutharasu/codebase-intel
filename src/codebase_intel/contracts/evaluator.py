@@ -26,7 +26,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from codebase_intel.contracts.models import (
@@ -34,10 +33,11 @@ from codebase_intel.contracts.models import (
     QualityContract,
     RuleKind,
 )
-from codebase_intel.core.exceptions import ContractViolationError, ErrorContext
 from codebase_intel.core.types import ContractSeverity, GraphNode, Language, NodeKind
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from codebase_intel.contracts.registry import ContractRegistry
     from codebase_intel.graph.storage import GraphStorage
 
@@ -165,14 +165,10 @@ class ContractEvaluator:
                 file_nodes = await self._storage.get_nodes_by_file(fp)
 
             for contract in contracts:
-                rules = contract.rules_for_file(
-                    fp, language=language, is_test=is_test
-                )
+                rules = contract.rules_for_file(fp, language=language, is_test=is_test)
                 for rule in rules:
                     report.rules_evaluated += 1
-                    violations = self._evaluate_rule(
-                        rule, contract.id, fp, content, file_nodes
-                    )
+                    violations = self._evaluate_rule(rule, contract.id, fp, content, file_nodes)
                     if strict_mode:
                         for v in violations:
                             if v.severity == ContractSeverity.WARNING:
@@ -224,17 +220,13 @@ class ContractEvaluator:
         if rule.kind == RuleKind.PATTERN:
             return self._evaluate_pattern_rule(rule, contract_id, file_path, content)
         elif rule.kind == RuleKind.THRESHOLD:
-            return self._evaluate_threshold_rule(
-                rule, contract_id, file_path, content, file_nodes
-            )
+            return self._evaluate_threshold_rule(rule, contract_id, file_path, content, file_nodes)
         elif rule.kind == RuleKind.ARCHITECTURAL:
             return self._evaluate_architectural_rule(
                 rule, contract_id, file_path, content, file_nodes
             )
         elif rule.kind == RuleKind.AI_ANTIPATTERN:
-            return self._evaluate_ai_antipattern(
-                rule, contract_id, file_path, content, file_nodes
-            )
+            return self._evaluate_ai_antipattern(rule, contract_id, file_path, content, file_nodes)
         return []
 
     def _evaluate_pattern_rule(
@@ -265,31 +257,35 @@ class ContractEvaluator:
 
                     match = compiled.search(line)
                     if match:
-                        violations.append(Violation(
-                            contract_id=contract_id,
-                            rule_id=rule.id,
-                            rule_name=rule.name,
-                            severity=rule.effective_severity,
-                            file_path=file_path,
-                            line=line_no,
-                            message=rule.description,
-                            fix_suggestion=rule.fix_suggestion,
-                            matched_text=match.group(0),
-                        ))
+                        violations.append(
+                            Violation(
+                                contract_id=contract_id,
+                                rule_id=rule.id,
+                                rule_name=rule.name,
+                                severity=rule.effective_severity,
+                                file_path=file_path,
+                                line=line_no,
+                                message=rule.description,
+                                fix_suggestion=rule.fix_suggestion,
+                                matched_text=match.group(0),
+                            )
+                        )
 
         if rule.anti_pattern:
             # Check that the pattern IS present (absence = violation)
             compiled = self._compile_pattern(f"{rule.id}_anti", rule.anti_pattern)
             if compiled and not compiled.search(content):
-                violations.append(Violation(
-                    contract_id=contract_id,
-                    rule_id=rule.id,
-                    rule_name=rule.name,
-                    severity=rule.effective_severity,
-                    file_path=file_path,
-                    message=f"Required pattern not found: {rule.anti_pattern}",
-                    fix_suggestion=rule.fix_suggestion,
-                ))
+                violations.append(
+                    Violation(
+                        contract_id=contract_id,
+                        rule_id=rule.id,
+                        rule_name=rule.name,
+                        severity=rule.effective_severity,
+                        file_path=file_path,
+                        message=f"Required pattern not found: {rule.anti_pattern}",
+                        fix_suggestion=rule.fix_suggestion,
+                    )
+                )
 
         return violations
 
@@ -321,15 +317,17 @@ class ContractEvaluator:
         if metric == "max_lines":
             line_count = content.count("\n") + 1
             if line_count > threshold:
-                violations.append(Violation(
-                    contract_id=contract_id,
-                    rule_id=rule.id,
-                    rule_name=rule.name,
-                    severity=rule.effective_severity,
-                    file_path=file_path,
-                    message=f"File has {line_count} lines (max: {int(threshold)})",
-                    fix_suggestion=rule.fix_suggestion,
-                ))
+                violations.append(
+                    Violation(
+                        contract_id=contract_id,
+                        rule_id=rule.id,
+                        rule_name=rule.name,
+                        severity=rule.effective_severity,
+                        file_path=file_path,
+                        message=f"File has {line_count} lines (max: {int(threshold)})",
+                        fix_suggestion=rule.fix_suggestion,
+                    )
+                )
 
         elif metric == "max_function_lines":
             # Check each function/method node
@@ -337,19 +335,21 @@ class ContractEvaluator:
                 if node.kind in (NodeKind.FUNCTION, NodeKind.METHOD) and node.line_range:
                     func_lines = node.line_range.span
                     if func_lines > threshold:
-                        violations.append(Violation(
-                            contract_id=contract_id,
-                            rule_id=rule.id,
-                            rule_name=rule.name,
-                            severity=rule.effective_severity,
-                            file_path=file_path,
-                            line=node.line_range.start,
-                            message=(
-                                f"Function '{node.name}' has {func_lines} lines "
-                                f"(max: {int(threshold)})"
-                            ),
-                            fix_suggestion=rule.fix_suggestion,
-                        ))
+                        violations.append(
+                            Violation(
+                                contract_id=contract_id,
+                                rule_id=rule.id,
+                                rule_name=rule.name,
+                                severity=rule.effective_severity,
+                                file_path=file_path,
+                                line=node.line_range.start,
+                                message=(
+                                    f"Function '{node.name}' has {func_lines} lines "
+                                    f"(max: {int(threshold)})"
+                                ),
+                                fix_suggestion=rule.fix_suggestion,
+                            )
+                        )
 
         return violations
 
@@ -404,16 +404,12 @@ class ContractEvaluator:
         # Rule-specific heuristics
         if rule.id == "no-hallucinated-imports" and self._storage:
             violations.extend(
-                self._check_hallucinated_imports(
-                    rule, contract_id, file_path, content, file_nodes
-                )
+                self._check_hallucinated_imports(rule, contract_id, file_path, content, file_nodes)
             )
 
         if rule.id == "no-over-abstraction":
             violations.extend(
-                self._check_over_abstraction(
-                    rule, contract_id, file_path, content, file_nodes
-                )
+                self._check_over_abstraction(rule, contract_id, file_path, content, file_nodes)
             )
 
         return violations
@@ -517,6 +513,7 @@ class ContractEvaluator:
     def _detect_language(self, file_path: Path) -> Language:
         """Detect language from file extension."""
         from codebase_intel.graph.parser import detect_language
+
         return detect_language(file_path)
 
     def _is_test_file(self, file_path: Path) -> bool:
