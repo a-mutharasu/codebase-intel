@@ -1,7 +1,6 @@
 # Handoff — codebase-intel v2 (Intent Graph)
 
 Last updated: 2026-07-18 · Branch: `main` · For the next session (human or agent)
-
 ## Read this first
 
 1. This file (5 min) — orientation and where things stand
