@@ -269,9 +269,20 @@ codebase-intel serve --auto             # Start MCP server for ALL registered pr
 # Cross-repo (microservices)
 codebase-intel crossrepo <paths...>     # Scan repos for cross-service dependencies
 codebase-intel crossrepo --all          # Scan all registered projects
+
+# Intent graph (v0.3)
+codebase-intel why "<title>" "<reason>" -f <file>   # Record a why (confirmed trust)
+codebase-intel install-hooks            # Install the pre-commit intent gate
+codebase-intel intent-gate              # Run the gate manually
+codebase-intel intent-check             # Repair moved anchors, flag drift, report coverage
+codebase-intel intent-confirm <node-id> # Promote an agent-asserted why to confirmed
+codebase-intel intent-render -f html -o intent.html  # Human view (html | mermaid)
+codebase-intel intent-migrate           # Import v1 decisions into the intent graph
+codebase-intel intent-rebuild           # Rebuild the SQLite index from the journal
+codebase-intel intent-eval [repos...]   # Token + correctness A/B vs the v1 baseline
 ```
 
-## MCP Tools (12 tools)
+## MCP Tools (16 tools)
 
 | Tool | What it does |
 |---|---|
@@ -287,6 +298,10 @@ codebase-intel crossrepo --all          # Scan all registered projects
 | `set_intent` | Capture what the user wants with machine-verifiable acceptance criteria. |
 | `check_intent` | Verify if acceptance criteria are actually met before marking done. |
 | `list_intents` | Show all tracked intents with completion status. |
+| `bootstrap` | **Call first in a session.** System orientation + task-relevant whys, packed into a token budget. |
+| `check_precedent` | Was this already decided — or decided and reversed? Call before structural choices. |
+| `record_why` | Record why a structural decision was made, at the moment it's made. |
+| `get_intent` | Traverse the intent graph by node, file, or abstraction level; no args = coverage stats. |
 
 ---
 
@@ -305,6 +320,35 @@ cp community-contracts/fastapi.yaml .codebase-intel/contracts/
 ```
 
 ---
+
+## New in v0.3.0 — the Intent Graph
+
+v0.2 could tell an agent *what* decisions exist. v0.3 captures **why** at the moment a decision is made, and lets agents traverse that reasoning instead of re-reading files and re-deciding things that were already decided.
+
+- **Journal-first.** `.codebase-intel/intent-journal/*.jsonl` is the committed source of truth; `intent-graph.db` is a derived, git-ignored index you can always rebuild (`intent-rebuild`).
+- **Four abstraction levels** — system topology → service/module → component/flow → function/decision — linked with parent/child and `supersedes` edges.
+- **Trust tiers, surfaced everywhere:** `mined` (from git) → `derived` → `asserted` (by an agent) → `confirmed` (by a human, via `intent-confirm`). Agents see which whys a human has actually vouched for.
+- **Capture loop.** Agents call `record_why` when they make a structural choice and `check_precedent` before they make one. A pre-commit gate (`install-hooks`) warns — or blocks, with `gate_hard` — on structural changes that have no recorded why.
+- **Session bootstrap.** `bootstrap(task)` returns top-level orientation plus the relevant whys within a token budget, with a degradation ladder: intent graph → code graph → raw files. It never hard-fails.
+- **Anchor honesty.** `intent-check` re-anchors whys when code moves, flags whys whose code diverged, and reports conflicts and coverage.
+- **Human projection.** `intent-render` produces an HTML or Mermaid view of the same graph for review.
+- **v1 migration.** `intent-migrate` imports existing decision records. It's safe to re-run.
+- **Eval harness.** `intent-eval` measures token cost *and* retrieval correctness against the v1 baseline. First self-hosted result: accuracy@1 100%, ~99% fewer tokens than a naive file read — on **n=3** cases from this repo only. See [docs/EVAL-RESULTS.md](docs/EVAL-RESULTS.md) for methodology and caveats; external-repo numbers are still to come.
+
+```bash
+pip install -U codebase-intel
+codebase-intel intent-migrate      # bring v1 decisions along
+codebase-intel install-hooks       # start capturing whys at commit time
+```
+
+An agent skill that tells Claude Code (and other agents) when to call these tools ships in [`skills/codebase-intel/SKILL.md`](skills/codebase-intel/SKILL.md).
+Install it for Claude Code with:
+
+```bash
+mkdir -p ~/.claude/skills/codebase-intel
+curl -fsSL https://raw.githubusercontent.com/MutharasuArchunan13/codebase-intel/main/skills/codebase-intel/SKILL.md \
+  -o ~/.claude/skills/codebase-intel/SKILL.md
+```
 
 ## New in v0.2.0
 
@@ -356,7 +400,7 @@ Records whether AI-generated code was accepted, modified, or rejected. Over time
 ## Architecture
 
 ```
-AI Agent (any) ──→ MCP Server (12 tools)
+AI Agent (any) ──→ MCP Server (16 tools)
                         │
                   Workspace Manager ←── Global Registry (~/.codebase-intel/)
                   (multi-project routing, LRU cache)

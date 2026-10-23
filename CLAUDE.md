@@ -67,6 +67,9 @@ src/codebase_intel/
 └── cli/           # main.py
 ```
 
+Outside `src/`: `skills/codebase-intel/SKILL.md` is the agent skill (portable frontmatter only:
+name, description, license, compatibility). `CHANGELOG.md` records releases.
+
 ## Key Commands
 - `ruff check src/ tests/` — Lint
 - `ruff format src/ tests/` — Format
@@ -98,6 +101,9 @@ src/codebase_intel/
 - See docs/V2-PLAN.md (requirements/design) and docs/TASK-LEDGER.md (state)
 
 ## Current Focus
+- v0.3.0 release prep (intent graph + agent skill) on `chore/release-0.3.0`; version is
+  single-sourced from `codebase_intel.__version__` via `[tool.hatch.version]`
+  (release = GitHub Release → `publish.yml` → PyPI)
 - v2 intent graph: Phases 0–5 + eval harness shipped (see TASK-LEDGER)
 - Next: eval harness needs 2–3 external production repos for a broader A/B (T-006
   remains open for that), team layer depth, pre-existing coverage debt (T-008)
