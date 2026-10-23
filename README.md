@@ -458,6 +458,10 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Contact
+
+Questions, partnerships or security reports: [mutharasu.theofficial@gmail.com](mailto:mutharasu.theofficial@gmail.com). For bugs and feature requests, please [open an issue](https://github.com/a-mutharasu/codebase-intel/issues).
+
 ## License
 
 MIT

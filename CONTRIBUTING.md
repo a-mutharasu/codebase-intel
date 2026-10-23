@@ -72,3 +72,7 @@ To contribute a contract pack:
 4. Test it: copy to a project's `.codebase-intel/contracts/` and run `codebase-intel benchmark`
 
 See existing packs (`fastapi.yaml`, `react-typescript.yaml`, `nodejs-express.yaml`) for the format.
+
+## Contact
+
+For anything that shouldn't be a public issue (security reports, private questions), email [mutharasu.theofficial@gmail.com](mailto:mutharasu.theofficial@gmail.com).

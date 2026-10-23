@@ -9,7 +9,7 @@ description = "Your AI agent writes code — but does it know WHY your code exis
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "Mutharasu" }]
+authors = [{ name = "Mutharasu A", email = "mutharasu.theofficial@gmail.com" }]
 keywords = [
     "ai", "ai-coding", "ai-agent", "coding-agents",
     "claude-code", "copilot", "cursor", "mcp", "mcp-server",

@@ -19,6 +19,7 @@ jobs:
       - run: uv python install 3.12
       - run: uv build
       - name: Publish to PyPI
-        run: uv publish
+        # Skips files already on PyPI, so a release for a manually uploaded version stays green.
+        run: uv publish --check-url https://pypi.org/simple/
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
