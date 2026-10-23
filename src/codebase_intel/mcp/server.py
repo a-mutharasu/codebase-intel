@@ -32,6 +32,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from codebase_intel import __version__
 from codebase_intel.core.config import ProjectConfig
 from codebase_intel.core.types import TokenBudget
 
@@ -1052,7 +1053,7 @@ def create_server(
                 "decisions": "available" if state.get("decisions_available") else "not_initialized",
                 "contracts": "available" if state.get("contracts_available") else "not_initialized",
             },
-            "version": "0.2.0",
+            "version": __version__,
         }
 
         # Add graph stats if available

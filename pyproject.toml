@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codebase-intel"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Your AI agent writes code — but does it know WHY your code exists? Decision provenance, quality contracts, and AI anti-pattern detection for coding agents."
 readme = "README.md"
 license = "MIT"
@@ -65,9 +65,12 @@ eval = [
 codebase-intel = "codebase_intel.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/mutharasu/codebase-intel"
-Repository = "https://github.com/mutharasu/codebase-intel"
-Issues = "https://github.com/mutharasu/codebase-intel/issues"
+Homepage = "https://github.com/MutharasuArchunan13/codebase-intel"
+Repository = "https://github.com/MutharasuArchunan13/codebase-intel"
+Issues = "https://github.com/MutharasuArchunan13/codebase-intel/issues"
+
+[tool.hatch.version]
+path = "src/codebase_intel/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codebase_intel"]
