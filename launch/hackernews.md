@@ -6,7 +6,7 @@
 Show HN: codebase-intel – Your AI agent doesn't know why your code exists
 
 **URL:**
-https://github.com/MutharasuArchunan13/codebase-intel
+https://github.com/a-mutharasu/codebase-intel
 
 **Text (paste this in the comment immediately after posting):**
 

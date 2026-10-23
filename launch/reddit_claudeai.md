@@ -61,7 +61,7 @@ pip install codebase-intel
 codebase-intel init
 ```
 
-**GitHub:** https://github.com/MutharasuArchunan13/codebase-intel
+**GitHub:** https://github.com/a-mutharasu/codebase-intel
 
 7 MCP tools: `get_context`, `query_graph`, `get_decisions`, `get_contracts`, `check_drift`, `impact_analysis`, `get_status`
 

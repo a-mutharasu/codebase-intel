@@ -2,7 +2,7 @@
 title: The 3 Things AI Coding Agents Still Can't Do (And How I Fixed Them)
 published: true
 tags: ai, python, opensource, programming
-canonical_url: https://github.com/MutharasuArchunan13/codebase-intel
+canonical_url: https://github.com/a-mutharasu/codebase-intel
 ---
 
 I've been using AI coding agents — Claude Code, GitHub Copilot, Cursor — daily across 11 production services for the past year. They've transformed how I work. But they keep failing at the same three things.
@@ -35,7 +35,7 @@ Every AI context tool solves **what code exists** — code graphs, RAG, embeddin
 
 ## What I Built
 
-**[codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel)** — an open-source platform that provides AI agents with three things no other tool offers:
+**[codebase-intel](https://github.com/a-mutharasu/codebase-intel)** — an open-source platform that provides AI agents with three things no other tool offers:
 
 ### 1. Decision Journal
 
@@ -171,7 +171,7 @@ We fill the gap none of them address: **why does this code exist, what rules mus
 2. What quality rules would you want enforced in your project?
 3. Are there decision types we're missing?
 
-**GitHub:** [MutharasuArchunan13/codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel)
+**GitHub:** [a-mutharasu/codebase-intel](https://github.com/a-mutharasu/codebase-intel)
 **PyPI:** `pip install codebase-intel`
 **License:** MIT
 

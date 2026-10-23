@@ -23,7 +23,7 @@ Built with: Python 3.11+, Pydantic v2, tree-sitter-language-pack (19 languages),
 
 Install: `pip install codebase-intel`
 
-GitHub: https://github.com/MutharasuArchunan13/codebase-intel
+GitHub: https://github.com/a-mutharasu/codebase-intel
 
 ## Target Audience
 

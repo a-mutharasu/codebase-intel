@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MutharasuArchunan13/codebase-intel/stargazers"><img src="https://img.shields.io/github/stars/MutharasuArchunan13/codebase-intel?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/a-mutharasu/codebase-intel/stargazers"><img src="https://img.shields.io/github/stars/a-mutharasu/codebase-intel?style=flat-square" alt="Stars"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="MIT"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-compatible-purple.svg?style=flat-square" alt="MCP"></a>
@@ -346,7 +346,7 @@ Install it for Claude Code with:
 
 ```bash
 mkdir -p ~/.claude/skills/codebase-intel
-curl -fsSL https://raw.githubusercontent.com/MutharasuArchunan13/codebase-intel/main/skills/codebase-intel/SKILL.md \
+curl -fsSL https://raw.githubusercontent.com/a-mutharasu/codebase-intel/main/skills/codebase-intel/SKILL.md \
   -o ~/.claude/skills/codebase-intel/SKILL.md
 ```
 
@@ -452,7 +452,7 @@ Areas with the most impact:
 4. **Benchmarks** — Run against your repos, share results
 
 ```bash
-git clone https://github.com/MutharasuArchunan13/codebase-intel.git
+git clone https://github.com/a-mutharasu/codebase-intel.git
 cd codebase-intel
 pip install -e ".[dev]"
 pytest

@@ -5,7 +5,7 @@ Thanks for wanting to help. Here's how to get started.
 ## Setup
 
 ```bash
-git clone https://github.com/MutharasuArchunan13/codebase-intel.git
+git clone https://github.com/a-mutharasu/codebase-intel.git
 cd codebase-intel
 uv sync --dev          # or: pip install -e ".[dev]"
 ```

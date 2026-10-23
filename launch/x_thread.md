@@ -76,7 +76,7 @@ Open source. MIT licensed. 19 languages.
 
 pip install codebase-intel
 
-GitHub: github.com/MutharasuArchunan13/codebase-intel
+GitHub: github.com/a-mutharasu/codebase-intel
 PyPI: pypi.org/project/codebase-intel
 
 If your AI agent doesn't know why your code exists, it's guessing. Stop guessing.

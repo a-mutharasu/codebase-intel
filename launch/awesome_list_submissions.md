@@ -7,7 +7,7 @@ Submit PRs to these repos. Each one is a backlink + discovery channel.
 **Section:** Developer Tools / Code Analysis
 **Entry to add:**
 ```
-- [codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel) - Codebase intelligence with decision provenance, quality contracts, and AI anti-pattern detection. 19 languages, auto-contract generation.
+- [codebase-intel](https://github.com/a-mutharasu/codebase-intel) - Codebase intelligence with decision provenance, quality contracts, and AI anti-pattern detection. 19 languages, auto-contract generation.
 ```
 
 ## 2. awesome-ai-devtools
@@ -15,7 +15,7 @@ Submit PRs to these repos. Each one is a backlink + discovery channel.
 **Section:** Code Analysis
 **Entry:**
 ```
-- [codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel) - Open-source context layer for AI coding agents. Provides decision provenance (why code exists), quality contracts, and drift detection via MCP.
+- [codebase-intel](https://github.com/a-mutharasu/codebase-intel) - Open-source context layer for AI coding agents. Provides decision provenance (why code exists), quality contracts, and drift detection via MCP.
 ```
 
 ## 3. awesome-python
@@ -23,14 +23,14 @@ Submit PRs to these repos. Each one is a backlink + discovery channel.
 **Section:** Code Analysis
 **Entry:**
 ```
-- [codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel) - Codebase intelligence platform providing structured context, decision provenance, and quality contracts for AI coding agents.
+- [codebase-intel](https://github.com/a-mutharasu/codebase-intel) - Codebase intelligence platform providing structured context, decision provenance, and quality contracts for AI coding agents.
 ```
 
 ## 4. awesome-claude
 **Repo:** Search for any awesome-claude or awesome-claude-code list
 **Entry:**
 ```
-- [codebase-intel](https://github.com/MutharasuArchunan13/codebase-intel) - MCP server giving Claude Code decision provenance, quality contracts, and AI anti-pattern detection. 19 languages.
+- [codebase-intel](https://github.com/a-mutharasu/codebase-intel) - MCP server giving Claude Code decision provenance, quality contracts, and AI anti-pattern detection. 19 languages.
 ```
 
 ## 5. MCP Server Directory
